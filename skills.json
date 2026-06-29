@@ -1,12 +1,15 @@
 {
-  "AI/ML Engineer": [
-    "Python",
-    "Machine Learning",
-    "SQL"
-  ],
-  "Web Developer": [
-    "HTML",
-    "CSS",
-    "JavaScript"
+  "questions": [
+    {
+      "id": 1,
+      "text": "Q1: A primary goal of Artificial Intelligence is...",
+      "options": [
+        "A. Making artificial ideas",
+        "B. Mimicking human intelligence",
+        "C. Correct option",
+        "D. Creating network protocols"
+      ],
+      "correct": "C. Correct option"
+    }
   ]
 }
