@@ -1,5 +1,6 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox, filedialog
+from database import save_user, extract_pdf_data, get_user
 
 class WelcomeScreen(tk.Frame):
     def __init__(self, parent, controller):
@@ -30,6 +31,7 @@ class WelcomeScreen(tk.Frame):
 class LoginScreen(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#F8FAFC")
+        self.controller = controller
         self.show_pwd = False
         
         card = tk.Frame(self, bg="white", highlightbackground="#E2E8F0", highlightthickness=1, bd=0)
@@ -41,8 +43,8 @@ class LoginScreen(tk.Frame):
         tk.Label(card, text="Login to your account", font=("Helvetica", 11), fg="#64748B", bg="white").pack(anchor="w", padx=35, pady=(0, 15))
 
         tk.Label(card, text="Username or Email", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=35, pady=(10, 4))
-        ent_user = tk.Entry(card, font=("Helvetica", 12), bg="#F8FAFC", fg="#0F172A", bd=1, relief="solid")
-        ent_user.pack(fill="x", padx=35, ipady=8)
+        self.ent_user = tk.Entry(card, font=("Helvetica", 12), bg="#F8FAFC", fg="#0F172A", bd=1, relief="solid")
+        self.ent_user.pack(fill="x", padx=35, ipady=8)
 
         tk.Label(card, text="Password", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=35, pady=(15, 4))
         self.ent_pass = tk.Entry(card, font=("Helvetica", 12), bg="#F8FAFC", fg="#0F172A", bd=1, relief="solid", show="*")
@@ -60,7 +62,23 @@ class LoginScreen(tk.Frame):
 
         tk.Button(opt_frame, text="Forgot Password?", font=("Helvetica", 10), fg="#2563EB", bg="white", bd=0, cursor="hand2", activebackground="white").pack(side="right")
 
-        tk.Button(card, text="Login", font=("Helvetica", 12, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", bd=0, cursor="hand2", command=lambda: controller.show_screen("MainDashboard")).pack(fill="x", padx=35, pady=(20, 10), ipady=10)
+        tk.Button(card, text="Login", font=("Helvetica", 12, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", bd=0, cursor="hand2", command=self.login).pack(fill="x", padx=35, pady=(20, 10), ipady=10)
+
+    def login(self):
+        email = self.ent_user.get().strip()
+        password = self.ent_pass.get()
+        
+        if not email or not password:
+            messagebox.showerror("Error", "Please enter both email and password!")
+            return
+            
+        user = get_user(email)
+        if not user or user["password"] != password:
+            messagebox.showerror("Error", "Invalid email or password!")
+            return
+            
+        self.controller.current_user_email = email
+        self.controller.show_screen("MainDashboard")
 
     def toggle_password(self):
         if self.show_pwd:
@@ -74,31 +92,100 @@ class LoginScreen(tk.Frame):
 class SignupScreen(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#F8FAFC")
+        self.controller = controller
         
         card = tk.Frame(self, bg="white", highlightbackground="#E2E8F0", highlightthickness=1, bd=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=460, height=660)
+        card.place(relx=0.5, rely=0.5, anchor="center", width=460, height=720)
 
-        tk.Button(card, text="← Back", font=("Helvetica", 10, "bold"), fg="#64748B", bg="white", bd=0, activebackground="white", cursor="hand2", command=lambda: controller.show_screen("WelcomeScreen")).pack(anchor="w", padx=40, pady=(20, 5))
+        tk.Button(card, text="← Back", font=("Helvetica", 10, "bold"), fg="#64748B", bg="white", bd=0, activebackground="white", cursor="hand2", command=lambda: controller.show_screen("WelcomeScreen")).pack(anchor="w", padx=40, pady=(15, 5))
         
         tk.Label(card, text="Create Your Account", font=("Helvetica", 22, "bold"), fg="#0F172A", bg="white").pack(anchor="w", padx=40, pady=2)
-        tk.Label(card, text="Get started with InterviewIQ", font=("Helvetica", 11), fg="#64748B", bg="white").pack(anchor="w", padx=40, pady=(0, 15))
+        tk.Label(card, text="Get started with InterviewIQ", font=("Helvetica", 11), fg="#64748B", bg="white").pack(anchor="w", padx=40, pady=(0, 10))
 
-        tk.Label(card, text="Full Name", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(5, 2))
-        tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid").pack(fill="x", padx=40, ipady=6)
+        tk.Label(card, text="Full Name", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.ent_fullname = tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid")
+        self.ent_fullname.pack(fill="x", padx=40, ipady=4)
 
-        tk.Label(card, text="Email", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(5, 2))
-        tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid").pack(fill="x", padx=40, ipady=6)
+        tk.Label(card, text="Email", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.ent_email = tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid")
+        self.ent_email.pack(fill="x", padx=40, ipady=4)
+
+        tk.Label(card, text="Password", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.ent_pass = tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid", show="*")
+        self.ent_pass.pack(fill="x", padx=40, ipady=4)
+
+        tk.Label(card, text="Confirm Password", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.ent_confirm_pass = tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid", show="*")
+        self.ent_confirm_pass.pack(fill="x", padx=40, ipady=4)
 
         # AI/Tech Targeted Dropdown Menus
-        tk.Label(card, text="Branch", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(5, 2))
-        b_combo = ttk.Combobox(card, values=["Computer Science Engineering", "Artificial Intelligence & Data Science", "Information Technology", "Electronics & Communication"], font=("Helvetica", 11), state="readonly")
-        b_combo.set("Artificial Intelligence & Data Science")
-        b_combo.pack(fill="x", padx=40, ipady=4)
+        tk.Label(card, text="Branch", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.b_combo = ttk.Combobox(card, values=["Computer Science Engineering", "Artificial Intelligence & Data Science", "Information Technology", "Electronics & Communication"], font=("Helvetica", 11), state="readonly")
+        self.b_combo.set("Artificial Intelligence & Data Science")
+        self.b_combo.pack(fill="x", padx=40, ipady=2)
 
-        tk.Label(card, text="Designation", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(5, 2))
-        d_combo = ttk.Combobox(card, values=["AI Engineer", "Machine Learning Engineer", "Data Scientist", "NLP Researcher", "Computer Vision Specialist"], font=("Helvetica", 11), state="readonly")
-        d_combo.set("AI Engineer")
-        d_combo.pack(fill="x", padx=40, ipady=4)
+        tk.Label(card, text="Designation", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.d_combo = ttk.Combobox(card, values=["AI Engineer", "Machine Learning Engineer", "Data Scientist", "NLP Researcher", "Computer Vision Specialist"], font=("Helvetica", 11), state="readonly")
+        self.d_combo.set("AI Engineer")
+        self.d_combo.pack(fill="x", padx=40, ipady=2)
 
-        tk.Button(card, text="Upload Resume", font=("Helvetica", 11), bg="#EFF6FF", fg="#2563EB", bd=1, relief="groove", cursor="hand2").pack(fill="x", padx=40, pady=15, ipady=8)
-        tk.Button(card, text="Complete Profile", font=("Helvetica", 12, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", bd=0, cursor="hand2", command=lambda: controller.show_screen("MainDashboard")).pack(fill="x", padx=40, ipady=10)
+        self.resume_path = None
+        self.btn_resume = tk.Button(card, text="Upload Resume", font=("Helvetica", 11), bg="#EFF6FF", fg="#2563EB", bd=1, relief="groove", cursor="hand2", command=self.upload_resume)
+        self.btn_resume.pack(fill="x", padx=40, pady=(12, 12), ipady=6)
+        tk.Button(card, text="Complete Profile", font=("Helvetica", 12, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", bd=0, cursor="hand2", command=self.register).pack(fill="x", padx=40, ipady=8)
+
+    def upload_resume(self):
+        import os
+        file_path = filedialog.askopenfilename(
+            title="Select Resume",
+            filetypes=[
+                ("PDF files", "*.pdf"),
+                ("Word documents", "*.docx;*.doc"),
+                ("Text files", "*.txt"),
+                ("All files", "*.*")
+            ]
+        )
+        if file_path:
+            self.resume_path = file_path
+            filename = os.path.basename(file_path)
+            if len(filename) > 25:
+                filename = filename[:22] + "..."
+            self.btn_resume.config(text=f"✓ {filename}", fg="#16A34A", bg="#F0FDF4")
+
+    def register(self):
+        fullname = self.ent_fullname.get().strip()
+        email = self.ent_email.get().strip()
+        password = self.ent_pass.get()
+        confirm_pass = self.ent_confirm_pass.get()
+
+        if not fullname or not email or not password or not confirm_pass:
+            messagebox.showerror("Error", "All fields are required!")
+            return
+
+        if "@" not in email:
+            messagebox.showerror("Error", "Please enter a valid email address!")
+            return
+
+        if password != confirm_pass:
+            messagebox.showerror("Error", "Passwords do not match!")
+            return
+
+        if not self.resume_path:
+            messagebox.showerror("Error", "Please upload your resume!")
+            return
+
+        # Extract text and photo from the PDF
+        resume_text, photo_bytes = extract_pdf_data(self.resume_path)
+        
+        # Save to database
+        branch = self.b_combo.get()
+        designation = self.d_combo.get()
+        
+        success = save_user(fullname, email, password, branch, designation, resume_text, photo_bytes)
+        
+        if not success:
+            messagebox.showerror("Error", "Email is already registered!")
+            return
+
+        # Navigate to Dashboard on successful registration
+        self.controller.show_screen("MainDashboard")

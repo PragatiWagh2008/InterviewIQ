@@ -1,6 +1,6 @@
 import tkinter as tk
 from login import WelcomeScreen, LoginScreen, SignupScreen
-from menu import MainDashboard
+from menu import MainDashboard, ResumeView
 from interview import MockInterviewView
 from roadmap import McqPracticeView, PerformanceView
 
@@ -12,13 +12,16 @@ class InterviewIQApp(tk.Tk):
         self.geometry("1100x780")
         self.configure(bg="#F8FAFC")
 
+        # Global Session variables
+        self.current_user_email = "demo@example.com"
+
         self.container = tk.Frame(self, bg="#F8FAFC")
         self.container.pack(fill="both", expand=True)
 
         self.screens = {}
 
         for ScreenClass in (WelcomeScreen, LoginScreen, SignupScreen, MainDashboard, 
-                             MockInterviewView, McqPracticeView, PerformanceView):
+                             ResumeView, MockInterviewView, McqPracticeView, PerformanceView):
             screen_name = ScreenClass.__name__
             frame = ScreenClass(parent=self.container, controller=self)
             self.screens[screen_name] = frame
@@ -31,6 +34,8 @@ class InterviewIQApp(tk.Tk):
 
     def show_screen(self, screen_name):
         frame = self.screens[screen_name]
+        if hasattr(frame, "on_show"):
+            frame.on_show()
         frame.tkraise()
 
 if __name__ == "__main__":
