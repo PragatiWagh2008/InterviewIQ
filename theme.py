@@ -3,6 +3,7 @@ InterviewIQ — Centralized Theme Engine
 Provides colors, hover helpers, card factories, focus glow, and font scaling.
 """
 import tkinter as tk
+import tkinter.font as tkfont
 
 
 # ─────────────────────────────────────────────
@@ -57,34 +58,58 @@ COLORS = {
 }
 
 
+def _pick_ui_font():
+    """Prefer Segoe UI; fall back to fonts commonly available on Linux/macOS."""
+    try:
+        available = set(tkfont.families())
+    except Exception:
+        available = set()
+    for name in ("Segoe UI", "Inter", "Ubuntu", "Noto Sans", "DejaVu Sans",
+                 "Helvetica Neue", "Arial", "sans-serif"):
+        if not available or name in available or name == "sans-serif":
+            return name
+    return "TkDefaultFont"
+
+
+_UI_FONT = None
+
+
+def _font_family():
+    global _UI_FONT
+    if _UI_FONT is None:
+        _UI_FONT = _pick_ui_font()
+    return _UI_FONT
+
+
 # ─────────────────────────────────────────────
 # Font Scaling
 # ─────────────────────────────────────────────
 _FONT_ROLES = {
-    "h1":       ("Segoe UI", 24, "bold"),
-    "h2":       ("Segoe UI", 20, "bold"),
-    "h3":       ("Segoe UI", 16, "bold"),
-    "h4":       ("Segoe UI", 14, "bold"),
-    "body":     ("Segoe UI", 11, "normal"),
-    "body_b":   ("Segoe UI", 11, "bold"),
-    "small":    ("Segoe UI", 10, "normal"),
-    "small_b":  ("Segoe UI", 10, "bold"),
-    "caption":  ("Segoe UI", 9, "normal"),
-    "caption_b":("Segoe UI", 9, "bold"),
-    "tiny":     ("Segoe UI", 8, "bold"),
-    "btn":      ("Segoe UI", 12, "bold"),
-    "btn_sm":   ("Segoe UI", 11, "bold"),
-    "nav":      ("Segoe UI", 11, "normal"),
-    "nav_active":("Segoe UI", 11, "bold"),
-    "brand":    ("Segoe UI", 14, "bold"),
-    "chat":     ("Segoe UI", 11, "normal"),
-    "chat_hdr": ("Segoe UI", 10, "bold"),
+    "h1": (24, "bold"),
+    "h2": (20, "bold"),
+    "h3": (16, "bold"),
+    "h4": (14, "bold"),
+    "body": (11, "normal"),
+    "body_b": (11, "bold"),
+    "small": (10, "normal"),
+    "small_b": (10, "bold"),
+    "caption": (9, "normal"),
+    "caption_b": (9, "bold"),
+    "tiny": (8, "bold"),
+    "btn": (12, "bold"),
+    "btn_sm": (11, "bold"),
+    "nav": (11, "normal"),
+    "nav_active": (11, "bold"),
+    "brand": (14, "bold"),
+    "chat": (11, "normal"),
+    "chat_hdr": (10, "bold"),
 }
 
 
 def get_font(role):
     """Return a font tuple for the given role string."""
-    return _FONT_ROLES.get(role, _FONT_ROLES["body"])
+    size, weight = _FONT_ROLES.get(role, _FONT_ROLES["body"])
+    return (_font_family(), size, weight)
 
 
 # ─────────────────────────────────────────────
@@ -128,12 +153,14 @@ def create_card(parent, bg=None, border_color=None, hover=False, hover_border=No
 
         def _enter(e):
             card.config(highlightbackground=hb)
+
         def _leave(e):
             card.config(highlightbackground=border_color)
 
         card.bind("<Enter>", _enter)
         card.bind("<Leave>", _leave)
         # Also bind to children so hovering inner labels doesn't flicker
+
         def _bind_children(widget):
             for child in widget.winfo_children():
                 child.bind("<Enter>", _enter, add="+")
@@ -164,7 +191,7 @@ def add_focus_glow(entry, focus_color=None, blur_color=None):
 
 
 # ─────────────────────────────────────────────
-# Animated Arc Draw  
+# Animated Arc Draw
 # ─────────────────────────────────────────────
 def animate_arc(canvas, cx, cy, r, target_pct, current_pct=0, arc_color=None,
                 bg_ring_color=None, label_font=None, sub_label="", step=2, delay=12):
@@ -177,6 +204,7 @@ def animate_arc(canvas, cx, cy, r, target_pct, current_pct=0, arc_color=None,
 
     x1, y1 = cx - r, cy - r
     x2, y2 = cx + r, cy + r
+    target_pct = max(0, min(100, int(target_pct or 0)))
 
     def _draw(pct):
         canvas.delete("all")
@@ -193,6 +221,9 @@ def animate_arc(canvas, cx, cy, r, target_pct, current_pct=0, arc_color=None,
         if pct < target_pct:
             next_pct = min(pct + step, target_pct)
             canvas.after(delay, lambda: _draw(next_pct))
+        elif pct > target_pct:
+            # Allow redrawing lower values without animation glitches
+            canvas.create_text(cx, cy - 8, text=f"{target_pct}%", font=label_font, fill=COLORS["text"])
 
     _draw(current_pct)
 
@@ -242,3 +273,25 @@ def pulse_label(label, color_a, color_b, interval=800):
         label.after(interval, _toggle)
 
     _toggle()
+
+
+def bind_mousewheel(widget, canvas):
+    """Cross-platform mousewheel binding for scrollable canvases."""
+    def _on_mousewheel(event):
+        if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
+            canvas.yview_scroll(-1, "units")
+        elif getattr(event, "num", None) == 5 or getattr(event, "delta", 0) < 0:
+            canvas.yview_scroll(1, "units")
+
+    def _bind(_event=None):
+        widget.bind_all("<MouseWheel>", _on_mousewheel)
+        widget.bind_all("<Button-4>", _on_mousewheel)
+        widget.bind_all("<Button-5>", _on_mousewheel)
+
+    def _unbind(_event=None):
+        widget.unbind_all("<MouseWheel>")
+        widget.unbind_all("<Button-4>")
+        widget.unbind_all("<Button-5>")
+
+    widget.bind("<Enter>", _bind)
+    widget.bind("<Leave>", _unbind)

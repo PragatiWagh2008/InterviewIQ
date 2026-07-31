@@ -1,11 +1,11 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from menu import InternalBaseView
-from database import get_user
+from database import get_user, save_interview_session
 from theme import COLORS, get_font, add_hover, TypingIndicator
 import random
+import threading
 
-# Question banks tailored by designation / general tech
 QUESTION_BANKS = {
     "AI Engineer": [
         "Welcome! To start off, please introduce yourself and outline your background in AI & key projects.",
@@ -51,6 +51,29 @@ QUESTION_BANKS = {
     ]
 }
 
+HARD_FOLLOWUPS = {
+    "Easy": [],
+    "Moderate": [
+        "Follow-up: Can you quantify the impact with a concrete metric or trade-off?",
+        "Follow-up: What would you change if latency or cost constraints tightened by 10x?"
+    ],
+    "Hard": [
+        "Follow-up: Walk through failure modes and how you would detect them in production.",
+        "Follow-up: Compare two alternative designs and justify your choice under scale.",
+        "Follow-up: How would you evaluate this rigorously (metrics, baselines, ablation)?"
+    ]
+}
+
+COMPANY_FLAVOR = {
+    "Google": "Focus on scalable systems, rigorous metrics, and clear problem decomposition.",
+    "Microsoft": "Emphasize product impact, collaboration, and reliable engineering practices.",
+    "Amazon": "Lead with customer obsession, ownership, and measurable operational results.",
+    "Meta": "Highlight large-scale data, experimentation speed, and ML platform thinking.",
+    "NVIDIA": "Stress performance, GPU/acceleration awareness, and systems efficiency.",
+    "OpenAI": "Discuss safety, evaluation, and practical LLM system design.",
+    "Apple": "Prioritize privacy, on-device constraints, and polished end-user experience.",
+}
+
 DESIGNATION_KEYWORDS = {
     "AI Engineer": ["model", "transformer", "rag", "fine-tune", "pipeline", "bias", "latency", "data", "accuracy", "inference", "gpu", "llm", "neural", "train", "eval"],
     "Machine Learning Engineer": ["overfitting", "variance", "cross-validation", "precision", "recall", "f1", "drift", "retrain", "feature", "imbalanced", "hyperparameter", "dataset"],
@@ -76,7 +99,6 @@ def _create_rounded_rect(canvas, x1, y1, x2, y2, radius=10, **kwargs):
               x2-radius, y2,
               x1+radius, y2,
               x1+radius, y2,
-              x1, y2,
               x1, y2-radius,
               x1, y2-radius,
               x1, y1+radius,
@@ -86,7 +108,6 @@ def _create_rounded_rect(canvas, x1, y1, x2, y2, radius=10, **kwargs):
 
 
 class ChatBubble(tk.Canvas):
-    """Custom visually appealing chat bubble using Canvas drawing"""
     def __init__(self, parent, text, sender="bot", sender_name="AI", **kwargs):
         super().__init__(parent, bg=COLORS["surface"], bd=0, highlightthickness=0, **kwargs)
         self.text = text
@@ -139,9 +160,10 @@ class MockInterviewView(InternalBaseView):
         self.questions = []
         self.user_name = "Candidate"
         self.designation = "AI Engineer"
-        self._typing_indicator = None
+        self.company = "Google"
+        self.difficulty = "Easy"
+        self._listening = False
 
-        # ── Top Header ───────────────────────────────────────────
         header = tk.Frame(self.workspace, bg=COLORS["bg"])
         header.pack(fill="x", pady=(0, 15))
 
@@ -154,11 +176,9 @@ class MockInterviewView(InternalBaseView):
                                      font=get_font("body"), fg=COLORS["text_muted"], bg=COLORS["bg"])
         self.lbl_subtitle.pack(anchor="w")
 
-        # Controls
         controls_f = tk.Frame(header, bg=COLORS["bg"])
         controls_f.pack(side="right", anchor="e")
 
-        # Live status pill
         status_pill = tk.Frame(controls_f, bg=COLORS["success_bg"],
                                highlightbackground=COLORS["success_border"], highlightthickness=1)
         status_pill.pack(side="left", padx=10)
@@ -173,7 +193,6 @@ class MockInterviewView(InternalBaseView):
         self.btn_reset.pack(side="left")
         add_hover(self.btn_reset, enter_bg=COLORS["surface_hover"], leave_bg=COLORS["surface_alt"])
 
-        # ── Chat Area ────────────────────────────────────────────
         self.chat_card = tk.Frame(self.workspace, bg=COLORS["surface"],
                                   highlightbackground=COLORS["border_light"], highlightthickness=1)
         self.chat_card.pack(fill="both", expand=True, pady=(0, 10))
@@ -192,7 +211,6 @@ class MockInterviewView(InternalBaseView):
 
         self.chat_canvas.bind("<Configure>", self._on_canvas_configure)
 
-        # ── Footer Input Area ────────────────────────────────────
         footer = tk.Frame(self.chat_card, bg=COLORS["surface"])
         footer.pack(fill="x", side="bottom")
 
@@ -211,15 +229,14 @@ class MockInterviewView(InternalBaseView):
         self.txt_msg.pack(fill="both", expand=True, padx=12, pady=10)
         self.txt_msg.bind("<Return>", self._on_enter_pressed)
 
-        # Focus glow on the outer frame
         def _focus_in(e):
             txt_outer.config(highlightbackground=COLORS["primary"])
+
         def _focus_out(e):
             txt_outer.config(highlightbackground=COLORS["border"])
         self.txt_msg.bind("<FocusIn>", _focus_in, add="+")
         self.txt_msg.bind("<FocusOut>", _focus_out, add="+")
 
-        # Action buttons
         btn_panel = tk.Frame(input_container, bg=COLORS["surface"])
         btn_panel.pack(side="right")
 
@@ -233,7 +250,7 @@ class MockInterviewView(InternalBaseView):
                                  bg=COLORS["bg"], fg=COLORS["text_secondary"], bd=0,
                                  highlightbackground=COLORS["border"], highlightthickness=1,
                                  cursor="hand2", activebackground=COLORS["surface_alt"],
-                                 command=self.simulated_mic)
+                                 command=self.speech_assist)
         self.btn_mic.pack(fill="x", ipady=2)
         add_hover(self.btn_mic, enter_bg=COLORS["surface_alt"], leave_bg=COLORS["bg"])
 
@@ -244,19 +261,26 @@ class MockInterviewView(InternalBaseView):
                 child.draw()
 
     def _on_enter_pressed(self, event):
-        if event.state & 0x0001:  # Shift pressed
+        if event.state & 0x0001:
             return
         self.send_message()
         return "break"
 
     def on_show(self):
-        email = getattr(self.controller, "current_user_email", "demo@example.com")
-        user = get_user(email)
+        email = self.controller.current_user_email
+        user = get_user(email) if email else None
         if user:
             self.user_name = user.get("fullname", "Candidate")
             self.designation = user.get("designation") or "AI Engineer"
+            self.company = user.get("target_company") or getattr(self.controller, "target_company", "Google")
+            self.difficulty = user.get("difficulty") or getattr(self.controller, "difficulty", "Easy")
+        else:
+            self.company = getattr(self.controller, "target_company", "Google")
+            self.difficulty = getattr(self.controller, "difficulty", "Easy")
 
-        self.lbl_subtitle.config(text=f"Target Role: {self.designation}   |   Candidate: {self.user_name}")
+        self.lbl_subtitle.config(
+            text=f"Target Role: {self.designation}  |  {self.company}  |  {self.difficulty}  |  {self.user_name}"
+        )
 
         if not self.session_active:
             self.start_interview()
@@ -271,13 +295,39 @@ class MockInterviewView(InternalBaseView):
         bank = QUESTION_BANKS.get(self.designation, QUESTION_BANKS["Default"])
         self.questions = list(bank)
 
+        if AI_ENABLED:
+            user_resume = ""
+            if self.controller.current_user_email:
+                user = get_user(self.controller.current_user_email)
+                user_resume = user.get("resume_text", "") if user else ""
+
+            generated = generate_interview_questions(
+                user_resume, self.designation, self.company, self.difficulty, n=5
+            )
+            if generated:
+                self.questions = generated
+
+        # Harder difficulties inject an extra probing angle into later questions
+        if self.difficulty in ("Moderate", "Hard"):
+            followups = HARD_FOLLOWUPS.get(self.difficulty, [])
+            for i in range(2, len(self.questions)):
+                if followups:
+                    self.questions[i] = self.questions[i] + "\n\n" + random.choice(followups)
+
+        flavor = COMPANY_FLAVOR.get(self.company, "")
         self.lbl_status.config(text="● Live Interview (1/5)", fg=COLORS["success_text"])
         self.lbl_status.master.config(bg=COLORS["success_bg"], highlightbackground=COLORS["success_border"])
 
         for widget in self.chat_scroll_frame.winfo_children():
             widget.destroy()
 
-        self.add_message("bot", f"🎯 Welcome {self.user_name}!\nLet's begin your technical interview for {self.designation}.\n\nQuestion 1 of 5:\n{self.questions[0]}")
+        intro = (
+            f"🎯 Welcome {self.user_name}!\n"
+            f"Mock interview for {self.designation} @ {self.company} ({self.difficulty}).\n"
+            f"{flavor}\n\n"
+            f"Question 1 of 5:\n{self.questions[0]}"
+        )
+        self.add_message("bot", intro)
         self.txt_msg.focus_set()
 
     def reset_interview(self):
@@ -291,11 +341,9 @@ class MockInterviewView(InternalBaseView):
 
         self.chat_canvas.update_idletasks()
         bubble.draw()
-
         self.chat_canvas.yview_moveto(1.0)
 
     def _show_typing_then_reply(self, reply_text):
-        """Show typing indicator, then replace with the actual reply."""
         indicator = TypingIndicator(self.chat_scroll_frame)
         indicator.pack(fill="x", padx=10, pady=4)
         indicator.start()
@@ -307,7 +355,6 @@ class MockInterviewView(InternalBaseView):
             indicator.destroy()
             self.add_message("bot", reply_text)
 
-        # Show typing for 600–1000ms
         delay = random.randint(600, 1000)
         self.after(delay, _deliver)
 
@@ -318,20 +365,36 @@ class MockInterviewView(InternalBaseView):
         keywords = DESIGNATION_KEYWORDS.get(self.designation, DESIGNATION_KEYWORDS["Default"])
         matched_keywords = [kw for kw in keywords if kw in user_text.lower()]
 
-        if word_count < 6:
-            feedback = "⚠️ Note: Your answer was quite brief. In technical interviews, try adding specific technical context or examples."
-            quality_score = 45
-        elif word_count < 15:
-            feedback = "👍 Good point! Adding more technical depth or framework details will strengthen your response."
-            quality_score = 68
+        # Difficulty raises the bar for what counts as a strong answer
+        depth_floor = {"Easy": 8, "Moderate": 14, "Hard": 20}.get(self.difficulty, 10)
+
+        feedback = ""
+        quality_score = 60
+        if word_count < max(6, depth_floor // 2):
+            feedback = "⚠️ Note: Your answer was quite brief. Add specific technical context or examples."
+            quality_score = 40
+        elif word_count < depth_floor:
+            feedback = "👍 Solid start. Add more technical depth, trade-offs, or metrics."
+            quality_score = 62
         else:
             if matched_keywords:
-                kw_str = ", ".join(set(matched_keywords[:3]))
-                feedback = f"✨ Great answer! You covered key technical concepts ({kw_str}) clearly."
-                quality_score = min(95, 75 + len(matched_keywords) * 5)
+                kw_str = ", ".join(sorted(set(matched_keywords))[:3])
+                feedback = f"✨ Strong answer — you covered key concepts ({kw_str})."
+                quality_score = min(95, 72 + len(matched_keywords) * 4)
             else:
-                feedback = "💡 Well-structured explanation! Be sure to highlight core domain terminology and metrics."
-                quality_score = 82
+                feedback = "💡 Well structured. Weave in core domain terminology and evaluation metrics."
+                quality_score = 78
+
+        if self.difficulty == "Hard" and len(matched_keywords) < 2:
+            quality_score = max(35, quality_score - 10)
+            feedback += "\nHard mode: interviewers expect denser domain vocabulary."
+
+        if AI_ENABLED:
+            question = self.questions[self.current_q_index] if self.current_q_index < len(self.questions) else ""
+            ai_result = ai_evaluate_answer(user_text, question, self.designation)
+            if ai_result:
+                feedback = ai_result.get("feedback", feedback)
+                quality_score = int(ai_result.get("overall_score", quality_score))
 
         return feedback, quality_score
 
@@ -349,13 +412,14 @@ class MockInterviewView(InternalBaseView):
         self.user_answers.append({
             "text": text,
             "word_count": len(text.split()),
-            "score": quality_score
+            "score": quality_score,
+            "matched": [kw for kw in DESIGNATION_KEYWORDS.get(self.designation, DESIGNATION_KEYWORDS["Default"])
+                        if kw in text.lower()]
         })
 
         self.txt_msg.delete("1.0", tk.END)
         self.txt_msg.focus_set()
 
-        # Brief "sent" flash on send button
         self.btn_send.config(bg=COLORS["success"], text="✓ Sent")
         self.after(400, lambda: self.btn_send.config(bg=COLORS["primary"], text="Send ➔"))
 
@@ -364,7 +428,6 @@ class MockInterviewView(InternalBaseView):
         if self.current_q_index < len(self.questions):
             next_q = self.questions[self.current_q_index]
             q_num = self.current_q_index + 1
-
             self.lbl_status.config(text=f"● Live Interview ({q_num}/5)")
             bot_reply = f"{feedback}\n\nQuestion {q_num} of 5:\n{next_q}"
             self.after(300, lambda: self._show_typing_then_reply(bot_reply))
@@ -374,45 +437,102 @@ class MockInterviewView(InternalBaseView):
             self.lbl_status.master.config(bg=COLORS["surface_alt"], highlightbackground=COLORS["border"])
 
             summary = self._generate_summary_report()
+            email = self.controller.current_user_email
+            if email and self.user_answers:
+                avg_score = sum(a["score"] for a in self.user_answers) // len(self.user_answers)
+                avg_words = sum(a["word_count"] for a in self.user_answers) // len(self.user_answers)
+                save_interview_session(
+                    email, self.designation, self.company, self.difficulty,
+                    avg_score, avg_words, self.user_answers
+                )
             self.after(400, lambda: self._show_typing_then_reply(summary))
 
-    def simulated_mic(self):
-        sample_responses = [
-            "In my previous projects, I implemented fine-tuning for Transformer models using PyTorch and Hugging Face, optimizing memory footprint with 8-bit quantization and LoRA adapters.",
-            "To prevent overfitting, I rely on regularized validation splits, dropout layers, data augmentation techniques, and early stopping criteria based on validation loss.",
-            "For RAG pipelines, we construct dense vector embeddings with FAISS, retrieve relevant chunks, and pass them to the LLM context window while checking BLEU and ROUGE metrics.",
-            "I manage inference latency by batching requests, deploying models with TensorRT/ONNX Runtime, and caching frequent query embeddings."
-        ]
-        simulated_text = random.choice(sample_responses)
+    def speech_assist(self):
+        if self._listening:
+            return
 
-        # Pulse mic button while "recording"
-        self.btn_mic.config(bg=COLORS["danger_bg"], fg=COLORS["danger"], text="🎙️ Recording...")
-        self.after(800, lambda: (
-            self.btn_mic.config(bg=COLORS["bg"], fg=COLORS["text_secondary"], text="🎙️ Speech Assist"),
-            self.txt_msg.delete("1.0", tk.END),
-            self.txt_msg.insert("1.0", simulated_text),
-            self.txt_msg.focus_set()
-        ))
+        def _try_speech_recognition():
+            try:
+                import speech_recognition as sr
+            except ImportError:
+                return None, "SpeechRecognition is not installed. Using a practice prompt instead."
+
+            recognizer = sr.Recognizer()
+            try:
+                with sr.Microphone() as source:
+                    recognizer.adjust_for_ambient_noise(source, duration=0.4)
+                    audio = recognizer.listen(source, timeout=5, phrase_time_limit=12)
+                text = recognizer.recognize_google(audio)
+                return text, None
+            except Exception as e:
+                return None, f"Could not capture speech ({e}). Inserted a practice prompt instead."
+
+        self._listening = True
+        self.btn_mic.config(bg=COLORS["danger_bg"], fg=COLORS["danger"], text="🎙️ Listening...")
+
+        def worker():
+            text, err = _try_speech_recognition()
+            sample_responses = [
+                "In my previous projects, I implemented fine-tuning for Transformer models using PyTorch and Hugging Face, optimizing memory footprint with 8-bit quantization and LoRA adapters.",
+                "To prevent overfitting, I rely on regularized validation splits, dropout layers, data augmentation techniques, and early stopping criteria based on validation loss.",
+                "For RAG pipelines, we construct dense vector embeddings with FAISS, retrieve relevant chunks, and pass them to the LLM context window while checking BLEU and ROUGE metrics.",
+                "I manage inference latency by batching requests, deploying models with TensorRT/ONNX Runtime, and caching frequent query embeddings."
+            ]
+            final_text = text or random.choice(sample_responses)
+            tip = err
+
+            def apply():
+                self._listening = False
+                self.btn_mic.config(bg=COLORS["bg"], fg=COLORS["text_secondary"], text="🎙️ Speech Assist")
+                self.txt_msg.delete("1.0", tk.END)
+                self.txt_msg.insert("1.0", final_text)
+                self.txt_msg.focus_set()
+                if tip and not text:
+                    # Soft notice only when falling back
+                    messagebox.showinfo("Speech Assist", tip)
+
+            self.after(0, apply)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _generate_summary_report(self):
         if self.user_answers:
             avg_score = sum(ans["score"] for ans in self.user_answers) // len(self.user_answers)
             avg_words = sum(ans["word_count"] for ans in self.user_answers) // len(self.user_answers)
+            all_kw = []
+            for ans in self.user_answers:
+                all_kw.extend(ans.get("matched") or [])
+            unique_kw = sorted(set(all_kw))
+            weak_count = sum(1 for ans in self.user_answers if ans["score"] < 65)
         else:
-            avg_score = 85
-            avg_words = 20
+            avg_score, avg_words, unique_kw, weak_count = 0, 0, [], 0
 
-        depth_eval = "Detailed" if avg_words > 18 else "Concise"
+        depth_eval = "Detailed" if avg_words > 18 else ("Balanced" if avg_words > 10 else "Concise")
+        recs = []
+        if avg_words < 12:
+            recs.append("Expand answers with concrete project examples and trade-offs.")
+        else:
+            recs.append("Good response length — keep leading with the decision, then evidence.")
+        if len(unique_kw) < 3:
+            recs.append(f"Use more {self.designation} vocabulary (metrics, tools, failure modes).")
+        else:
+            recs.append(f"Nice keyword coverage ({', '.join(unique_kw[:4])}).")
+        if weak_count:
+            recs.append(f"{weak_count} answer(s) scored below 65% — revisit those topics before a live round.")
+        else:
+            recs.append("Consistency looks solid across the set.")
+        if self.difficulty != "Hard":
+            recs.append(f"Try raising difficulty to the next level for {self.company}-style pressure.")
 
         report = (
             f"🎉 Interview Completed!\n\n"
             f"📊 Performance Evaluation:\n"
-            f"• Target Role: {self.designation}\n"
-            f"• Overall Candidate Score: {avg_score}% / 100 ⭐\n"
+            f"• Target Role: {self.designation} @ {self.company}\n"
+            f"• Difficulty: {self.difficulty}\n"
+            f"• Overall Candidate Score: {avg_score}% / 100\n"
             f"• Average Response Depth: {avg_words} words / answer ({depth_eval})\n\n"
             f"💡 Recommendations:\n"
-            f"1. Excellent engagement across technical concepts.\n"
-            f"2. Keep refining your specific project metrics.\n\n"
-            f"Status: Ready for live tech round! Check your Progress tab."
+            + "\n".join(f"{i+1}. {r}" for i, r in enumerate(recs[:4]))
+            + "\n\nStatus: Saved to your Progress tab."
         )
         return report

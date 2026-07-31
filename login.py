@@ -1,7 +1,13 @@
+import os
+import re
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-from database import save_user, extract_pdf_data, get_user
-from theme import COLORS, get_font, add_hover, add_focus_glow
+from tkinter import ttk, messagebox, filedialog, simpledialog
+
+from database import (
+    save_user, extract_resume_data, authenticate, update_password,
+    save_remembered_email, load_remembered_email, clear_remembered_email, get_user
+)
+from theme import COLORS, get_font, add_hover, add_focus_glow, bind_mousewheel
 
 
 def _responsive_card(parent, max_width, max_height):
@@ -13,13 +19,14 @@ def _responsive_card(parent, max_width, max_height):
     _resize_id = [None]
 
     def _resize(event):
-        # Debounce resize to avoid layout thrashing
         if _resize_id[0]:
             parent.after_cancel(_resize_id[0])
+
         def _apply():
             w = min(max_width, int(event.width * 0.85))
             h = min(max_height, int(event.height * 0.92))
             card.place_configure(width=w, height=h)
+
         _resize_id[0] = parent.after(30, _apply)
 
     parent.bind("<Configure>", _resize)
@@ -32,7 +39,6 @@ class WelcomeScreen(tk.Frame):
 
         card = _responsive_card(self, max_width=420, max_height=500)
 
-        # Logo
         canvas = tk.Canvas(card, width=60, height=60, bg=COLORS["surface"], bd=0, highlightthickness=0)
         canvas.pack(pady=(40, 15))
         canvas.create_polygon(30, 10, 10, 50, 50, 50, fill=COLORS["primary"], outline="")
@@ -66,6 +72,23 @@ class WelcomeScreen(tk.Frame):
                  fg=COLORS["text_faint"], bg=COLORS["surface"]).pack()
 
 
+def _validate_email(value: str) -> bool:
+    if not value:
+        return False
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value.strip()))
+
+
+def _validate_fullname(value: str) -> bool:
+    if not value:
+        return False
+    trimmed = value.strip()
+    return len(trimmed) >= 3 and bool(re.search(r"[A-Za-z]", trimmed))
+
+
+def _validate_password(value: str) -> bool:
+    return bool(value and len(value) >= 8)
+
+
 class LoginScreen(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COLORS["bg"])
@@ -86,7 +109,7 @@ class LoginScreen(tk.Frame):
         tk.Label(card, text="Login to your account", font=get_font("body"),
                  fg=COLORS["text_muted"], bg=COLORS["surface"]).pack(anchor="w", padx=35, pady=(0, 15))
 
-        tk.Label(card, text="Username or Email", font=get_font("small_b"),
+        tk.Label(card, text="Email or Full Name", font=get_font("small_b"),
                  fg=COLORS["text_secondary"], bg=COLORS["surface"]).pack(anchor="w", padx=35, pady=(10, 4))
         self.ent_user = tk.Entry(card, font=get_font("btn"), bg=COLORS["bg"], fg=COLORS["text"],
                                  bd=1, relief="solid", highlightthickness=1,
@@ -102,7 +125,6 @@ class LoginScreen(tk.Frame):
         self.ent_pass.pack(fill="x", padx=35, ipady=8)
         add_focus_glow(self.ent_pass)
 
-        # Options row
         opt_frame = tk.Frame(card, bg=COLORS["surface"])
         opt_frame.pack(fill="x", padx=35, pady=12)
 
@@ -111,7 +133,7 @@ class LoginScreen(tk.Frame):
                        bg=COLORS["surface"], fg=COLORS["text_secondary"], activebackground=COLORS["surface"],
                        bd=0).pack(side="left")
 
-        btn_show = tk.Button(opt_frame, text="👁 Show", font=get_font("caption_b"),
+        btn_show = tk.Button(opt_frame, text="Show", font=get_font("caption_b"),
                              fg=COLORS["primary"], bg=COLORS["surface"], bd=0, cursor="hand2",
                              activebackground=COLORS["surface"], command=self.toggle_password)
         btn_show.pack(side="left", padx=10)
@@ -119,7 +141,7 @@ class LoginScreen(tk.Frame):
 
         btn_forgot = tk.Button(opt_frame, text="Forgot Password?", font=get_font("small"),
                                fg=COLORS["primary"], bg=COLORS["surface"], bd=0, cursor="hand2",
-                               activebackground=COLORS["surface"])
+                               activebackground=COLORS["surface"], command=self.forgot_password)
         btn_forgot.pack(side="right")
         add_hover(btn_forgot, enter_fg=COLORS["primary_hover"], leave_fg=COLORS["primary"])
 
@@ -129,20 +151,68 @@ class LoginScreen(tk.Frame):
         btn_submit.pack(fill="x", padx=35, pady=(20, 10), ipady=10)
         add_hover(btn_submit, enter_bg=COLORS["primary_hover"], leave_bg=COLORS["primary"])
 
+        tk.Label(card, text="Demo: demo@example.com / password123", font=get_font("caption"),
+                 fg=COLORS["text_faint"], bg=COLORS["surface"]).pack(pady=(0, 10))
+
+    def on_show(self):
+        remembered = load_remembered_email()
+        if remembered and get_user(remembered):
+            self.ent_user.delete(0, tk.END)
+            self.ent_user.insert(0, remembered)
+            self.rem_var.set(True)
+            self.ent_pass.focus_set()
+        else:
+            if remembered:
+                clear_remembered_email()
+            self.ent_pass.focus_set() if self.ent_user.get() else self.ent_user.focus_set()
+
+    def forgot_password(self):
+        email = simpledialog.askstring("Reset Password", "Enter the email for your account:", parent=self)
+        if not email:
+            return
+        user = get_user(email.strip())
+        if not user:
+            messagebox.showerror("Error", "No account found with that email.")
+            return
+        new_pass = simpledialog.askstring("Reset Password", "Enter a new password:", show="*", parent=self)
+        if not new_pass:
+            return
+        if len(new_pass) < 6:
+            messagebox.showerror("Error", "Password must be at least 6 characters.")
+            return
+        confirm = simpledialog.askstring("Reset Password", "Confirm new password:", show="*", parent=self)
+        if new_pass != confirm:
+            messagebox.showerror("Error", "Passwords do not match.")
+            return
+        if update_password(user["email"], new_pass):
+            messagebox.showinfo("Success", "Password updated. You can log in now.")
+        else:
+            messagebox.showerror("Error", "Could not update password.")
+
     def login(self):
         email = self.ent_user.get().strip()
         password = self.ent_pass.get()
 
         if not email or not password:
-            messagebox.showerror("Error", "Please enter both email and password!")
+            messagebox.showerror("Error", "Please enter both email/name and password!")
             return
 
-        user = get_user(email)
-        if not user or user["password"] != password:
-            messagebox.showerror("Error", "Invalid email or password!")
+        if "@" in email and not _validate_email(email):
+            messagebox.showerror("Error", "Please enter a valid email address!")
             return
 
-        self.controller.current_user_email = email
+        user = authenticate(email, password)
+        if not user:
+            messagebox.showerror("Error", "Invalid email/name or password!")
+            return
+
+        if self.rem_var.get():
+            save_remembered_email(user["email"])
+        else:
+            clear_remembered_email()
+
+        self.controller.login_user(user["email"])
+        self.ent_pass.delete(0, tk.END)
         self.controller.show_screen("MainDashboard")
 
     def toggle_password(self):
@@ -161,7 +231,6 @@ class SignupScreen(tk.Frame):
 
         card = _responsive_card(self, max_width=460, max_height=720)
 
-        # Scrollable interior
         canvas_scroll = tk.Canvas(card, bg=COLORS["surface"], bd=0, highlightthickness=0)
         scrollbar = ttk.Scrollbar(card, orient="vertical", command=canvas_scroll.yview)
         self.inner = tk.Frame(canvas_scroll, bg=COLORS["surface"])
@@ -172,20 +241,8 @@ class SignupScreen(tk.Frame):
 
         canvas_scroll.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        bind_mousewheel(canvas_scroll, canvas_scroll)
 
-        # Widget-scoped mousewheel binding (not bind_all)
-        def _on_mousewheel(event):
-            canvas_scroll.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        def _bind_wheel(event):
-            canvas_scroll.bind_all("<MouseWheel>", _on_mousewheel)
-        def _unbind_wheel(event):
-            canvas_scroll.unbind_all("<MouseWheel>")
-
-        canvas_scroll.bind("<Enter>", _bind_wheel)
-        canvas_scroll.bind("<Leave>", _unbind_wheel)
-
-        # Sync inner frame width with canvas width
         def _sync_width(event):
             canvas_scroll.itemconfig("all", width=event.width)
         canvas_scroll.bind("<Configure>", _sync_width)
@@ -204,7 +261,12 @@ class SignupScreen(tk.Frame):
         tk.Label(inner, text="Get started with InterviewIQ", font=get_font("body"),
                  fg=COLORS["text_muted"], bg=COLORS["surface"]).pack(anchor="w", padx=40, pady=(0, 10))
 
-        # Form fields
+        # Pre-declare entry attributes so static analyzers (pylint) recognize them
+        self.ent_fullname = None
+        self.ent_email = None
+        self.ent_pass = None
+        self.ent_confirm_pass = None
+
         fields = [
             ("Full Name", "ent_fullname"),
             ("Email", "ent_email"),
@@ -222,7 +284,6 @@ class SignupScreen(tk.Frame):
             add_focus_glow(entry)
             setattr(self, attr_name, entry)
 
-        # Dropdowns
         tk.Label(inner, text="Branch", font=get_font("small_b"),
                  fg=COLORS["text_secondary"], bg=COLORS["surface"]).pack(anchor="w", padx=40, pady=(4, 1))
         self.b_combo = ttk.Combobox(inner, values=[
@@ -239,9 +300,8 @@ class SignupScreen(tk.Frame):
         self.d_combo.set("AI Engineer")
         self.d_combo.pack(fill="x", padx=40, ipady=2)
 
-        # Resume upload
         self.resume_path = None
-        self.btn_resume = tk.Button(inner, text="📎 Upload Resume", font=get_font("body"),
+        self.btn_resume = tk.Button(inner, text="📎 Upload Resume (PDF / DOCX / TXT)", font=get_font("body"),
                                     bg=COLORS["primary_light"], fg=COLORS["primary"], bd=1, relief="groove",
                                     cursor="hand2", command=self.upload_resume)
         self.btn_resume.pack(fill="x", padx=40, pady=(12, 12), ipady=6)
@@ -255,17 +315,21 @@ class SignupScreen(tk.Frame):
         add_hover(btn_register, enter_bg=COLORS["primary_hover"], leave_bg=COLORS["primary"])
 
     def upload_resume(self):
-        import os
         file_path = filedialog.askopenfilename(
             title="Select Resume",
             filetypes=[
+                ("Supported resumes", "*.pdf *.docx *.txt"),
                 ("PDF files", "*.pdf"),
-                ("Word documents", "*.docx;*.doc"),
+                ("Word documents", "*.docx"),
                 ("Text files", "*.txt"),
                 ("All files", "*.*")
             ]
         )
         if file_path:
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == ".doc":
+                messagebox.showerror("Unsupported", "Legacy .doc files are not supported. Use PDF, DOCX, or TXT.")
+                return
             self.resume_path = file_path
             filename = os.path.basename(file_path)
             if len(filename) > 25:
@@ -283,8 +347,16 @@ class SignupScreen(tk.Frame):
             messagebox.showerror("Error", "All fields are required!")
             return
 
-        if "@" not in email:
+        if not _validate_fullname(fullname):
+            messagebox.showerror("Error", "Please provide a valid full name (at least 3 characters).")
+            return
+
+        if not _validate_email(email):
             messagebox.showerror("Error", "Please enter a valid email address!")
+            return
+
+        if not _validate_password(password):
+            messagebox.showerror("Error", "Password must be at least 8 characters!")
             return
 
         if password != confirm_pass:
@@ -295,7 +367,11 @@ class SignupScreen(tk.Frame):
             messagebox.showerror("Error", "Please upload your resume!")
             return
 
-        resume_text, photo_bytes = extract_pdf_data(self.resume_path)
+        resume_text, photo_bytes, err = extract_resume_data(self.resume_path)
+        if err:
+            messagebox.showerror("Resume Error", err)
+            return
+
         branch = self.b_combo.get()
         designation = self.d_combo.get()
 
@@ -305,4 +381,6 @@ class SignupScreen(tk.Frame):
             messagebox.showerror("Error", "Email is already registered!")
             return
 
+        self.controller.login_user(email)
+        messagebox.showinfo("Welcome", f"Account created for {fullname}. You're logged in!")
         self.controller.show_screen("MainDashboard")
