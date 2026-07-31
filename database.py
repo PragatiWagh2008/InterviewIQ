@@ -4,6 +4,31 @@ import sqlite3
 
 DB_PATH = "interview_iq.db"
 
+MOCK_RESUME_TEMPLATE = """ARYAN DEKONDWAR
+Chh. Sambhajinagar | +91-8446819553 | aryandekondwar6@gmail.com
+
+TARGET ROLE
+Artificial Intelligence and Machine Learning Intern
+
+SUMMARY
+- Dedicated undergraduate student with a keen interest in technology, problem-solving, and continuous learning.
+- Seeking an internship opportunity to enhance technical and professional skills while contributing to projects through creativity, teamwork, and analytical thinking.
+
+SKILLS
+- Languages: C/C++, Python, Java, HTML/CSS
+- Concepts: Problem Solving, Artificial Intelligence, Machine Learning
+
+EDUCATION
+Diploma in Artificial Intelligence and Machine Learning
+Pursuing
+
+Little Flower High School
+SSC Percentage: 83%
+
+CERTIFICATIONS
+- C/C++
+- MSCIT"""
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -24,11 +49,9 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
             INSERT INTO users (fullname, email, password, branch, designation, resume_text, photo)
-            VALUES ('Alex Carter', 'demo@example.com', 'password123', 
-                    'Computer Science Engineering', 'AI Engineer', 
-                    'ALEX CARTER\nAI Engineer | Machine Learning Specialist\n\nEXPERIENCE:\n- Senior AI Engineer at Tech Corp\n- ML Researcher at Data Lab\n\nEDUCATION:\n- BS in Computer Science\n\nSKILLS:\n- Python, PyTorch, TensorFlow, Natural Language Processing, Computer Vision', 
-                    NULL)
-        """)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ('Alex Carter', 'demo@example.com', 'password123', 
+              'Computer Science Engineering', 'Software Developer', MOCK_RESUME_TEMPLATE, None))
     conn.commit()
     conn.close()
 

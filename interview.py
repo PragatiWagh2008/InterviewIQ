@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from menu import InternalBaseView
 from database import get_user
+from theme import COLORS, get_font, add_hover, TypingIndicator
 import random
 
 # Question banks tailored by designation / general tech
@@ -83,10 +84,11 @@ def _create_rounded_rect(canvas, x1, y1, x2, y2, radius=10, **kwargs):
               x1, y1]
     return canvas.create_polygon(points, **kwargs, smooth=True)
 
+
 class ChatBubble(tk.Canvas):
     """Custom visually appealing chat bubble using Canvas drawing"""
     def __init__(self, parent, text, sender="bot", sender_name="AI", **kwargs):
-        super().__init__(parent, bg="white", bd=0, highlightthickness=0, **kwargs)
+        super().__init__(parent, bg=COLORS["surface"], bd=0, highlightthickness=0, **kwargs)
         self.text = text
         self.sender = sender
         self.sender_name = sender_name
@@ -95,138 +97,153 @@ class ChatBubble(tk.Canvas):
     def draw(self, event=None):
         self.delete("all")
         w = self.winfo_width()
-        
-        # Determine colors and dynamic width boundaries
-        bg_color = "#F1F5F9" if self.sender == "bot" else "#2563EB"
-        fg_color = "#0F172A" if self.sender == "bot" else "white"
-        header_color = "#3B82F6" if self.sender == "bot" else "#93C5FD"
-        
-        max_bubble_width = max(200, w - 100) # Leave 100px gap on opposite side
-        
-        # Create text to measure its bounding box
-        temp_text = self.create_text(0, 0, text=self.text, font=("Helvetica", 11), width=max_bubble_width-40, anchor="nw")
+
+        bg_color = COLORS["surface_alt"] if self.sender == "bot" else COLORS["primary"]
+        fg_color = COLORS["text"] if self.sender == "bot" else "white"
+        header_color = COLORS["primary"] if self.sender == "bot" else COLORS["primary_lighter"]
+
+        max_bubble_width = max(200, w - 100)
+
+        temp_text = self.create_text(0, 0, text=self.text, font=get_font("chat"), width=max_bubble_width-40, anchor="nw")
         bounds = self.bbox(temp_text)
         text_w = bounds[2] - bounds[0]
         text_h = bounds[3] - bounds[1]
         self.delete(temp_text)
-        
+
         bubble_w = text_w + 40
-        bubble_h = text_h + 50 # padding + header
-        
-        self.config(height=bubble_h + 10) # 10px margin bottom
-        
+        bubble_h = text_h + 50
+
+        self.config(height=bubble_h + 10)
+
         if self.sender == "bot":
             x1, y1 = 20, 5
             x2, y2 = 20 + bubble_w, 5 + bubble_h
             _create_rounded_rect(self, x1, y1, x2, y2, radius=16, fill=bg_color)
-            self.create_text(x1 + 20, y1 + 18, text=f"🤖 {self.sender_name}", font=("Helvetica", 10, "bold"), fill=header_color, anchor="w")
-            self.create_text(x1 + 20, y1 + 35, text=self.text, font=("Helvetica", 11), fill=fg_color, width=max_bubble_width-40, anchor="nw")
+            self.create_text(x1 + 20, y1 + 18, text=f"🤖 {self.sender_name}", font=get_font("chat_hdr"), fill=header_color, anchor="w")
+            self.create_text(x1 + 20, y1 + 35, text=self.text, font=get_font("chat"), fill=fg_color, width=max_bubble_width-40, anchor="nw")
         else:
             x1, y1 = w - bubble_w - 20, 5
             x2, y2 = w - 20, 5 + bubble_h
             _create_rounded_rect(self, x1, y1, x2, y2, radius=16, fill=bg_color)
-            self.create_text(x2 - 20, y1 + 18, text=f"{self.sender_name} 👤", font=("Helvetica", 10, "bold"), fill=header_color, anchor="e")
-            self.create_text(x1 + 20, y1 + 35, text=self.text, font=("Helvetica", 11), fill=fg_color, width=max_bubble_width-40, anchor="nw")
+            self.create_text(x2 - 20, y1 + 18, text=f"{self.sender_name} 👤", font=get_font("chat_hdr"), fill=header_color, anchor="e")
+            self.create_text(x1 + 20, y1 + 35, text=self.text, font=get_font("chat"), fill=fg_color, width=max_bubble_width-40, anchor="nw")
 
 
 class MockInterviewView(InternalBaseView):
     def __init__(self, parent, controller):
         super().__init__(parent, controller, "Interview Chat")
-        
+
         self.session_active = False
         self.current_q_index = 0
         self.user_answers = []
         self.questions = []
         self.user_name = "Candidate"
         self.designation = "AI Engineer"
+        self._typing_indicator = None
 
-        # Modernized Top Header Row
-        header = tk.Frame(self.workspace, bg="#F8FAFC")
+        # ── Top Header ───────────────────────────────────────────
+        header = tk.Frame(self.workspace, bg=COLORS["bg"])
         header.pack(fill="x", pady=(0, 15))
 
-        title_frame = tk.Frame(header, bg="#F8FAFC")
+        title_frame = tk.Frame(header, bg=COLORS["bg"])
         title_frame.pack(side="left")
-        
-        tk.Label(title_frame, text="AI Mock Interview", font=("Helvetica", 24, "bold"), fg="#0F172A", bg="#F8FAFC").pack(anchor="w")
-        self.lbl_subtitle = tk.Label(title_frame, text="Real-time technical interview session", font=("Helvetica", 11), fg="#64748B", bg="#F8FAFC")
+
+        tk.Label(title_frame, text="AI Mock Interview", font=get_font("h1"),
+                 fg=COLORS["text"], bg=COLORS["bg"]).pack(anchor="w")
+        self.lbl_subtitle = tk.Label(title_frame, text="Real-time technical interview session",
+                                     font=get_font("body"), fg=COLORS["text_muted"], bg=COLORS["bg"])
         self.lbl_subtitle.pack(anchor="w")
 
-        # Action Buttons on Header Right
-        controls_f = tk.Frame(header, bg="#F8FAFC")
+        # Controls
+        controls_f = tk.Frame(header, bg=COLORS["bg"])
         controls_f.pack(side="right", anchor="e")
 
-        # Live Status Pill
-        status_pill = tk.Frame(controls_f, bg="#ECFDF5", highlightbackground="#D1FAE5", highlightthickness=1)
+        # Live status pill
+        status_pill = tk.Frame(controls_f, bg=COLORS["success_bg"],
+                               highlightbackground=COLORS["success_border"], highlightthickness=1)
         status_pill.pack(side="left", padx=10)
-        self.lbl_status = tk.Label(status_pill, text="● Live Interview (1/5)", font=("Helvetica", 10, "bold"), fg="#059669", bg="#ECFDF5", padx=12, pady=6)
+        self.lbl_status = tk.Label(status_pill, text="● Live Interview (1/5)", font=get_font("small_b"),
+                                   fg=COLORS["success_text"], bg=COLORS["success_bg"], padx=12, pady=6)
         self.lbl_status.pack()
 
-        self.btn_reset = tk.Button(controls_f, text="↺ Restart Session", font=("Helvetica", 10, "bold"), bg="#F1F5F9", fg="#475569", bd=0, padx=15, pady=8, cursor="hand2", activebackground="#E2E8F0", command=self.reset_interview)
+        self.btn_reset = tk.Button(controls_f, text="↺ Restart Session", font=get_font("small_b"),
+                                   bg=COLORS["surface_alt"], fg=COLORS["text_secondary"], bd=0,
+                                   padx=15, pady=8, cursor="hand2", activebackground=COLORS["surface_hover"],
+                                   command=self.reset_interview)
         self.btn_reset.pack(side="left")
+        add_hover(self.btn_reset, enter_bg=COLORS["surface_hover"], leave_bg=COLORS["surface_alt"])
 
-        # Main Chat Box Area - Soft shadow-like border
-        self.chat_card = tk.Frame(self.workspace, bg="white", highlightbackground="#CBD5E1", highlightthickness=1)
+        # ── Chat Area ────────────────────────────────────────────
+        self.chat_card = tk.Frame(self.workspace, bg=COLORS["surface"],
+                                  highlightbackground=COLORS["border_light"], highlightthickness=1)
         self.chat_card.pack(fill="both", expand=True, pady=(0, 10))
 
-        # Scrollable Canvas Chat Container
-        self.chat_canvas = tk.Canvas(self.chat_card, bg="white", bd=0, highlightthickness=0)
-        
-        # Sleek scrollbar
+        self.chat_canvas = tk.Canvas(self.chat_card, bg=COLORS["surface"], bd=0, highlightthickness=0)
         self.chat_scrollbar = ttk.Scrollbar(self.chat_card, orient="vertical", command=self.chat_canvas.yview)
-        
-        self.chat_scroll_frame = tk.Frame(self.chat_canvas, bg="white")
+
+        self.chat_scroll_frame = tk.Frame(self.chat_canvas, bg=COLORS["surface"])
         self.chat_scroll_frame.bind("<Configure>", lambda e: self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all")))
-        
+
         self.canvas_window = self.chat_canvas.create_window((0, 0), window=self.chat_scroll_frame, anchor="nw")
         self.chat_canvas.configure(yscrollcommand=self.chat_scrollbar.set)
 
         self.chat_canvas.pack(side="left", fill="both", expand=True)
         self.chat_scrollbar.pack(side="right", fill="y")
 
-        # Keep chat scroll frame matching canvas width dynamically
         self.chat_canvas.bind("<Configure>", self._on_canvas_configure)
 
-        # -------------------------------------------------------------
-        # Re-designed Modern Footer 
-        # -------------------------------------------------------------
-        footer = tk.Frame(self.chat_card, bg="white")
+        # ── Footer Input Area ────────────────────────────────────
+        footer = tk.Frame(self.chat_card, bg=COLORS["surface"])
         footer.pack(fill="x", side="bottom")
-        
-        # Separator line
-        tk.Frame(footer, bg="#E2E8F0", height=1).pack(fill="x")
 
-        # Container for typing and buttons
-        input_container = tk.Frame(footer, bg="white", pady=15, padx=20)
+        tk.Frame(footer, bg=COLORS["border"], height=1).pack(fill="x")
+
+        input_container = tk.Frame(footer, bg=COLORS["surface"], pady=15, padx=20)
         input_container.pack(fill="x")
 
-        # Left side: Text Input Box with rounded appearance (padding trick)
-        txt_outer = tk.Frame(input_container, bg="#F1F5F9", highlightbackground="#E2E8F0", highlightthickness=1)
+        txt_outer = tk.Frame(input_container, bg=COLORS["surface_alt"],
+                             highlightbackground=COLORS["border"], highlightthickness=1)
         txt_outer.pack(side="left", fill="both", expand=True, padx=(0, 15))
 
-        self.txt_msg = tk.Text(txt_outer, font=("Helvetica", 11), bg="#F1F5F9", fg="#0F172A", bd=0, wrap="word", height=2, insertbackground="#2563EB")
+        self.txt_msg = tk.Text(txt_outer, font=get_font("body"), bg=COLORS["surface_alt"],
+                               fg=COLORS["text"], bd=0, wrap="word", height=2,
+                               insertbackground=COLORS["primary"])
         self.txt_msg.pack(fill="both", expand=True, padx=12, pady=10)
-        
         self.txt_msg.bind("<Return>", self._on_enter_pressed)
 
-        # Right side: Stacked Action Buttons
-        btn_panel = tk.Frame(input_container, bg="white")
+        # Focus glow on the outer frame
+        def _focus_in(e):
+            txt_outer.config(highlightbackground=COLORS["primary"])
+        def _focus_out(e):
+            txt_outer.config(highlightbackground=COLORS["border"])
+        self.txt_msg.bind("<FocusIn>", _focus_in, add="+")
+        self.txt_msg.bind("<FocusOut>", _focus_out, add="+")
+
+        # Action buttons
+        btn_panel = tk.Frame(input_container, bg=COLORS["surface"])
         btn_panel.pack(side="right")
 
-        self.btn_send = tk.Button(btn_panel, text="Send ➔", font=("Helvetica", 11, "bold"), bg="#2563EB", fg="white", bd=0, cursor="hand2", activebackground="#1D4ED8", command=self.send_message)
+        self.btn_send = tk.Button(btn_panel, text="Send ➔", font=get_font("btn_sm"),
+                                  bg=COLORS["primary"], fg="white", bd=0, cursor="hand2",
+                                  activebackground=COLORS["primary_hover"], command=self.send_message)
         self.btn_send.pack(fill="x", ipady=4, pady=(0, 6))
+        add_hover(self.btn_send, enter_bg=COLORS["primary_hover"], leave_bg=COLORS["primary"])
 
-        self.btn_mic = tk.Button(btn_panel, text="🎙️ Speech Assist", font=("Helvetica", 9), bg="#F8FAFC", fg="#475569", bd=0, highlightbackground="#E2E8F0", highlightthickness=1, cursor="hand2", activebackground="#F1F5F9", command=self.simulated_mic)
+        self.btn_mic = tk.Button(btn_panel, text="🎙️ Speech Assist", font=get_font("caption"),
+                                 bg=COLORS["bg"], fg=COLORS["text_secondary"], bd=0,
+                                 highlightbackground=COLORS["border"], highlightthickness=1,
+                                 cursor="hand2", activebackground=COLORS["surface_alt"],
+                                 command=self.simulated_mic)
         self.btn_mic.pack(fill="x", ipady=2)
+        add_hover(self.btn_mic, enter_bg=COLORS["surface_alt"], leave_bg=COLORS["bg"])
 
     def _on_canvas_configure(self, event):
         self.chat_canvas.itemconfig(self.canvas_window, width=event.width)
-        # Redraw all chat bubbles when canvas resizes to fit width properly
         for child in self.chat_scroll_frame.winfo_children():
             if isinstance(child, ChatBubble):
                 child.draw()
 
     def _on_enter_pressed(self, event):
-        # Shift+Enter inserts newline; plain Enter submits the answer
         if event.state & 0x0001:  # Shift pressed
             return
         self.send_message()
@@ -238,10 +255,9 @@ class MockInterviewView(InternalBaseView):
         if user:
             self.user_name = user.get("fullname", "Candidate")
             self.designation = user.get("designation") or "AI Engineer"
-        
+
         self.lbl_subtitle.config(text=f"Target Role: {self.designation}   |   Candidate: {self.user_name}")
-        
-        # Auto-start interview immediately if not already active
+
         if not self.session_active:
             self.start_interview()
         else:
@@ -251,16 +267,16 @@ class MockInterviewView(InternalBaseView):
         self.session_active = True
         self.current_q_index = 0
         self.user_answers = []
-        
+
         bank = QUESTION_BANKS.get(self.designation, QUESTION_BANKS["Default"])
         self.questions = list(bank)
-        
-        self.lbl_status.config(text="● Live Interview (1/5)", fg="#059669")
-        self.lbl_status.master.config(bg="#ECFDF5", highlightbackground="#D1FAE5")
-        
+
+        self.lbl_status.config(text="● Live Interview (1/5)", fg=COLORS["success_text"])
+        self.lbl_status.master.config(bg=COLORS["success_bg"], highlightbackground=COLORS["success_border"])
+
         for widget in self.chat_scroll_frame.winfo_children():
             widget.destroy()
-            
+
         self.add_message("bot", f"🎯 Welcome {self.user_name}!\nLet's begin your technical interview for {self.designation}.\n\nQuestion 1 of 5:\n{self.questions[0]}")
         self.txt_msg.focus_set()
 
@@ -272,17 +288,33 @@ class MockInterviewView(InternalBaseView):
         sender_name = "AI Recruiter" if sender == "bot" else self.user_name
         bubble = ChatBubble(self.chat_scroll_frame, text=text, sender=sender, sender_name=sender_name)
         bubble.pack(fill="x", expand=True)
-        
-        # Trigger an initial draw explicitly before idle tasks for smooth loading
+
         self.chat_canvas.update_idletasks()
         bubble.draw()
-        
+
         self.chat_canvas.yview_moveto(1.0)
+
+    def _show_typing_then_reply(self, reply_text):
+        """Show typing indicator, then replace with the actual reply."""
+        indicator = TypingIndicator(self.chat_scroll_frame)
+        indicator.pack(fill="x", padx=10, pady=4)
+        indicator.start()
+        self.chat_canvas.update_idletasks()
+        self.chat_canvas.yview_moveto(1.0)
+
+        def _deliver():
+            indicator.stop()
+            indicator.destroy()
+            self.add_message("bot", reply_text)
+
+        # Show typing for 600–1000ms
+        delay = random.randint(600, 1000)
+        self.after(delay, _deliver)
 
     def evaluate_user_answer(self, user_text):
         words = user_text.lower().split()
         word_count = len(words)
-        
+
         keywords = DESIGNATION_KEYWORDS.get(self.designation, DESIGNATION_KEYWORDS["Default"])
         matched_keywords = [kw for kw in keywords if kw in user_text.lower()]
 
@@ -307,12 +339,12 @@ class MockInterviewView(InternalBaseView):
         text = self.txt_msg.get("1.0", "end-1c").strip()
         if not text:
             return
-        
+
         if not self.session_active:
             self.start_interview()
 
         self.add_message("user", text)
-        
+
         feedback, quality_score = self.evaluate_user_answer(text)
         self.user_answers.append({
             "text": text,
@@ -322,23 +354,27 @@ class MockInterviewView(InternalBaseView):
 
         self.txt_msg.delete("1.0", tk.END)
         self.txt_msg.focus_set()
-        
+
+        # Brief "sent" flash on send button
+        self.btn_send.config(bg=COLORS["success"], text="✓ Sent")
+        self.after(400, lambda: self.btn_send.config(bg=COLORS["primary"], text="Send ➔"))
+
         self.current_q_index += 1
-        
+
         if self.current_q_index < len(self.questions):
             next_q = self.questions[self.current_q_index]
             q_num = self.current_q_index + 1
-            
+
             self.lbl_status.config(text=f"● Live Interview ({q_num}/5)")
             bot_reply = f"{feedback}\n\nQuestion {q_num} of 5:\n{next_q}"
-            self.after(500, lambda: self.add_message("bot", bot_reply))
+            self.after(300, lambda: self._show_typing_then_reply(bot_reply))
         else:
             self.session_active = False
-            self.lbl_status.config(text="✓ Completed", fg="#0F172A")
-            self.lbl_status.master.config(bg="#F1F5F9", highlightbackground="#E2E8F0")
-            
+            self.lbl_status.config(text="✓ Completed", fg=COLORS["text"])
+            self.lbl_status.master.config(bg=COLORS["surface_alt"], highlightbackground=COLORS["border"])
+
             summary = self._generate_summary_report()
-            self.after(600, lambda: self.add_message("bot", summary))
+            self.after(400, lambda: self._show_typing_then_reply(summary))
 
     def simulated_mic(self):
         sample_responses = [
@@ -348,10 +384,15 @@ class MockInterviewView(InternalBaseView):
             "I manage inference latency by batching requests, deploying models with TensorRT/ONNX Runtime, and caching frequent query embeddings."
         ]
         simulated_text = random.choice(sample_responses)
-        
-        self.txt_msg.delete("1.0", tk.END)
-        self.txt_msg.insert("1.0", simulated_text)
-        self.txt_msg.focus_set()
+
+        # Pulse mic button while "recording"
+        self.btn_mic.config(bg=COLORS["danger_bg"], fg=COLORS["danger"], text="🎙️ Recording...")
+        self.after(800, lambda: (
+            self.btn_mic.config(bg=COLORS["bg"], fg=COLORS["text_secondary"], text="🎙️ Speech Assist"),
+            self.txt_msg.delete("1.0", tk.END),
+            self.txt_msg.insert("1.0", simulated_text),
+            self.txt_msg.focus_set()
+        ))
 
     def _generate_summary_report(self):
         if self.user_answers:
