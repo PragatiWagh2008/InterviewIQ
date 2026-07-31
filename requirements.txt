@@ -2,6 +2,10 @@
 pypdf>=4.0.0
 Pillow>=10.0.0
 
+# Optional: real microphone input for Speech Assist
+# speechrecognition>=3.10.0
+# PyAudio  # platform-specific; may need system packages
+
 # Standard library (ships with Python, no install needed)
 # tkinter
 # sqlite3
