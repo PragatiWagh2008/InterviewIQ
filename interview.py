@@ -2,6 +2,11 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from menu import InternalBaseView
 from database import get_user, save_interview_session
+from services.ai_service import generate_interview_questions, evaluate_answer as ai_evaluate_answer
+try:
+    from config import AI_ENABLED
+except ImportError:
+    AI_ENABLED = False
 from theme import COLORS, get_font, add_hover, TypingIndicator
 import random
 import threading

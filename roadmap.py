@@ -1,4 +1,5 @@
 import tkinter as tk
+import random
 from menu import InternalBaseView, _draw_bar_chart
 from database import load_quiz_data, save_mcq_session, get_performance_summary
 from theme import COLORS, get_font, add_hover, create_card, animate_arc
@@ -75,7 +76,9 @@ class McqPracticeView(InternalBaseView):
 
         preferred = [q for q in raw if q.get("difficulty") == self.difficulty]
         others = [q for q in raw if q.get("difficulty") != self.difficulty]
-        # Prefer matching difficulty; fill up to 5 questions from the rest
+        # Prefer matching difficulty; randomize order for fresh restart behavior.
+        random.shuffle(preferred)
+        random.shuffle(others)
         combined = preferred + others
         self.questions = combined[:5] if combined else []
 
