@@ -44,6 +44,37 @@ class InternalBaseView(tk.Frame):
         self.workspace.pack(fill="both", expand=True, padx=40, pady=30)
 
 
+def _draw_bar_chart(canvas, days, heights, bar_color="#2563EB"):
+    """Redraw a bar chart proportionally to the current canvas size."""
+    canvas.delete("all")
+    w = canvas.winfo_width()
+    h = canvas.winfo_height()
+    if w < 10 or h < 10:
+        return
+
+    n = len(days)
+    margin_left = 20
+    margin_right = 20
+    margin_top = 10
+    margin_bottom = 25
+    usable_w = w - margin_left - margin_right
+    usable_h = h - margin_top - margin_bottom
+
+    bar_spacing = usable_w / n
+    bar_width = max(8, bar_spacing * 0.55)
+    max_h = max(heights) if heights else 1
+
+    for i, (day, val) in enumerate(zip(days, heights)):
+        bar_h = (val / max_h) * usable_h
+        x0 = margin_left + i * bar_spacing + (bar_spacing - bar_width) / 2
+        y0 = margin_top + usable_h - bar_h
+        x1 = x0 + bar_width
+        y1 = margin_top + usable_h
+
+        canvas.create_rectangle(x0, y0, x1, y1, fill=bar_color, outline="")
+        canvas.create_text(x0 + bar_width / 2, y1 + 12, text=day, font=("Helvetica", 9), fill="#64748B")
+
+
 class MainDashboard(InternalBaseView):
     def __init__(self, parent, controller):
         super().__init__(parent, controller, "Profile")
@@ -58,7 +89,7 @@ class MainDashboard(InternalBaseView):
         streak_frame.pack(side="right", padx=5)
         tk.Label(streak_frame, text="🔥 5 Day Streak!", font=("Helvetica", 11, "bold"), fg="#C2410C", bg="#FFF7ED", padx=10, pady=5).pack()
 
-        # Target Navigation Work Cards Grid Layout
+        # Target Navigation Work Cards — responsive grid layout
         cards_f = tk.Frame(self.workspace, bg="#F8FAFC")
         cards_f.pack(fill="x", pady=10)
 
@@ -68,10 +99,11 @@ class MainDashboard(InternalBaseView):
             ("View\nProgress", "PerformanceView", "📊")
         ]
 
-        for title, route, icon in flows:
-            card = tk.Frame(cards_f, bg="white", highlightbackground="#E2E8F0", highlightthickness=1, width=220, height=120)
-            card.pack_propagate(False)
-            card.pack(side="left", padx=(0, 20))
+        for i, (title, route, icon) in enumerate(flows):
+            cards_f.columnconfigure(i, weight=1, uniform="nav_cards")
+
+            card = tk.Frame(cards_f, bg="white", highlightbackground="#E2E8F0", highlightthickness=1)
+            card.grid(row=0, column=i, padx=(0 if i == 0 else 10, 0), sticky="nsew", ipady=15)
             
             tk.Label(card, text=icon, font=("Helvetica", 18), bg="white").pack(anchor="w", padx=20, pady=(12, 2))
             lbl_text = tk.Label(card, text=title, font=("Helvetica", 12, "bold"), bg="white", fg="#0F172A", justify="left")
@@ -106,20 +138,14 @@ class MainDashboard(InternalBaseView):
         graph_f.pack(fill="both", expand=True, pady=(10, 0))
         tk.Label(graph_f, text="Daily Progress Activity", font=("Helvetica", 12, "bold"), fg="#0F172A", bg="white").pack(anchor="w", padx=20, pady=10)
 
-        # Custom Bar Graph Canvas Draw Rendering Block
-        graph_canvas = tk.Canvas(graph_f, bg="white", bd=0, highlightthickness=0)
-        graph_canvas.pack(fill="both", expand=True, padx=20, pady=(0, 10))
-        
-        # Drawing Mock Activity bar charts metrics dynamically
-        days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        heights = [40, 60, 35, 90, 50, 75, 95]
-        for i, (day, h) in enumerate(zip(days, heights)):
-            x0 = 40 + (i * 75)
-            y0 = 150 - h
-            x1 = x0 + 35
-            y1 = 150
-            graph_canvas.create_rectangle(x0, y0, x1, y1, fill="#2563EB", outline="")
-            graph_canvas.create_text(x0+17, 162, text=day, font=("Helvetica", 10), fill="#64748B")
+        # Dynamic Bar Graph Canvas — redraws on resize
+        self.graph_canvas = tk.Canvas(graph_f, bg="white", bd=0, highlightthickness=0)
+        self.graph_canvas.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+
+        self._dash_days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self._dash_heights = [40, 60, 35, 90, 50, 75, 95]
+        self.graph_canvas.bind("<Configure>", lambda e: _draw_bar_chart(
+            self.graph_canvas, self._dash_days, self._dash_heights))
 
 
 class ResumeView(InternalBaseView):
@@ -131,16 +157,18 @@ class ResumeView(InternalBaseView):
         header_f.pack(fill="x", pady=(0, 15))
         tk.Label(header_f, text="Your Uploaded Resume", font=("Helvetica", 22, "bold"), fg="#0F172A", bg="#F8FAFC").pack(side="left")
 
-        # Two-panel layout: Left for Profile & Photo, Right for Resume Content
+        # Two-panel layout using grid with proportional weights
         self.panel_frame = tk.Frame(self.workspace, bg="#F8FAFC")
         self.panel_frame.pack(fill="both", expand=True)
-        
+        self.panel_frame.columnconfigure(0, weight=1, minsize=250)
+        self.panel_frame.columnconfigure(1, weight=3)
+        self.panel_frame.rowconfigure(0, weight=1)
+
         # -------------------------------------------------------------
         # Left Panel (Profile info card)
         # -------------------------------------------------------------
-        self.left_card = tk.Frame(self.panel_frame, bg="white", highlightbackground="#E2E8F0", highlightthickness=1, width=320)
-        self.left_card.pack(side="left", fill="both", padx=(0, 20), pady=5)
-        self.left_card.pack_propagate(False)
+        self.left_card = tk.Frame(self.panel_frame, bg="white", highlightbackground="#E2E8F0", highlightthickness=1)
+        self.left_card.grid(row=0, column=0, padx=(0, 20), pady=5, sticky="nsew")
         
         # Avatar / Photo Canvas Unit
         self.photo_canvas = tk.Canvas(self.left_card, width=120, height=120, bg="#F1F5F9", highlightthickness=0)
@@ -174,7 +202,7 @@ class ResumeView(InternalBaseView):
         # Right Panel (Tabbed Content Area)
         # -------------------------------------------------------------
         self.right_container = tk.Frame(self.panel_frame, bg="#F8FAFC")
-        self.right_container.pack(side="left", fill="both", expand=True, pady=5)
+        self.right_container.grid(row=0, column=1, pady=5, sticky="nsew")
         
         # Tab bar layout
         self.tab_bar = tk.Frame(self.right_container, bg="#F8FAFC")
@@ -196,7 +224,7 @@ class ResumeView(InternalBaseView):
         
         # Split into upper section (Radial Dial and Tech Skills side-by-side)
         upper_frame = tk.Frame(self.insights_frame, bg="white")
-        upper_frame.pack(fill="x", pady=(0, 20))
+        upper_frame.pack(fill="both", expand=True, pady=(0, 20))
         
         # Score Dial Card
         score_card = tk.Frame(upper_frame, bg="white", highlightbackground="#F1F5F9", highlightthickness=1)

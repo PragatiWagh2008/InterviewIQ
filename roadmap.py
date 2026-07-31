@@ -1,5 +1,5 @@
 import tkinter as tk
-from menu import InternalBaseView
+from menu import InternalBaseView, _draw_bar_chart
 from database import load_quiz_data
 
 class McqPracticeView(InternalBaseView):
@@ -123,21 +123,44 @@ class PerformanceView(InternalBaseView):
         
         tk.Label(prog_card, text="Daily Progress", font=("Helvetica", 12, "bold"), fg="#0F172A", bg="white").pack(anchor="w", padx=20, pady=10)
 
-        graph_canvas = tk.Canvas(prog_card, bg="white", bd=0, highlightthickness=0, height=85)
-        graph_canvas.pack(fill="x", padx=15)
-        
-        week_days = ["M", "T", "W", "T", "F", "S", "S"]
-        bar_heights = [25, 50, 40, 45, 65, 50, 35]
-        
-        for idx, (d_name, height) in enumerate(zip(week_days, bar_heights)):
-            x0 = 10 + (idx * 34)
-            y0 = 65 - height
-            x1 = x0 + 16
-            y1 = 65
-            
-            bar_color = "#2563EB" if d_name == "F" else "#A7F3D0"
-            graph_canvas.create_rectangle(x0, y0, x1, y1, fill=bar_color, outline="")
-            graph_canvas.create_text(x0 + 8, 76, text=d_name, font=("Helvetica", 8, "bold"), fill="#64748B")
+        # Dynamic bar chart canvas — redraws on resize
+        self.perf_graph_canvas = tk.Canvas(prog_card, bg="white", bd=0, highlightthickness=0)
+        self.perf_graph_canvas.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+
+        self._perf_days = ["M", "T", "W", "T", "F", "S", "S"]
+        self._perf_heights = [25, 50, 40, 45, 65, 50, 35]
+        self._perf_colors = ["#A7F3D0", "#A7F3D0", "#A7F3D0", "#A7F3D0", "#2563EB", "#A7F3D0", "#A7F3D0"]
+
+        def _draw_perf_chart(event):
+            self.perf_graph_canvas.delete("all")
+            w = self.perf_graph_canvas.winfo_width()
+            h = self.perf_graph_canvas.winfo_height()
+            if w < 10 or h < 10:
+                return
+
+            n = len(self._perf_days)
+            margin_left = 10
+            margin_right = 10
+            margin_top = 5
+            margin_bottom = 20
+            usable_w = w - margin_left - margin_right
+            usable_h = h - margin_top - margin_bottom
+
+            bar_spacing = usable_w / n
+            bar_width = max(8, bar_spacing * 0.5)
+            max_h = max(self._perf_heights)
+
+            for idx, (d_name, height, color) in enumerate(zip(self._perf_days, self._perf_heights, self._perf_colors)):
+                bar_h = (height / max_h) * usable_h
+                x0 = margin_left + idx * bar_spacing + (bar_spacing - bar_width) / 2
+                y0 = margin_top + usable_h - bar_h
+                x1 = x0 + bar_width
+                y1 = margin_top + usable_h
+
+                self.perf_graph_canvas.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
+                self.perf_graph_canvas.create_text(x0 + bar_width / 2, y1 + 10, text=d_name, font=("Helvetica", 8, "bold"), fill="#64748B")
+
+        self.perf_graph_canvas.bind("<Configure>", _draw_perf_chart)
 
         # -------------------------------------------------------------
         # FOOTER ROW: Recommended Training Roadmap (Full Width Strip)

@@ -1,0 +1,10 @@
+# Third-party libraries (install via pip)
+pypdf>=4.0.0
+Pillow>=10.0.0
+
+# Standard library (ships with Python, no install needed)
+# tkinter
+# sqlite3
+# json
+# os
+# io

@@ -2,12 +2,26 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from database import save_user, extract_pdf_data, get_user
 
+
+def _responsive_card(parent, max_width, max_height):
+    """Create a centered card that scales with the window but caps at a max size."""
+    card = tk.Frame(parent, bg="white", highlightbackground="#E2E8F0", highlightthickness=1, bd=0)
+    card.place(relx=0.5, rely=0.5, anchor="center", width=max_width, height=max_height)
+
+    def _resize(event):
+        w = min(max_width, int(event.width * 0.85))
+        h = min(max_height, int(event.height * 0.92))
+        card.place_configure(width=w, height=h)
+
+    parent.bind("<Configure>", _resize)
+    return card
+
+
 class WelcomeScreen(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#F8FAFC")
         
-        card = tk.Frame(self, bg="white", highlightbackground="#E2E8F0", highlightthickness=1, bd=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=420, height=500)
+        card = _responsive_card(self, max_width=420, max_height=500)
 
         canvas = tk.Canvas(card, width=60, height=60, bg="white", bd=0, highlightthickness=0)
         canvas.pack(pady=(40, 15))
@@ -34,8 +48,7 @@ class LoginScreen(tk.Frame):
         self.controller = controller
         self.show_pwd = False
         
-        card = tk.Frame(self, bg="white", highlightbackground="#E2E8F0", highlightthickness=1, bd=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=420, height=560)
+        card = _responsive_card(self, max_width=420, max_height=560)
 
         tk.Button(card, text="← Back", font=("Helvetica", 10, "bold"), fg="#64748B", bg="white", bd=0, activebackground="white", cursor="hand2", command=lambda: controller.show_screen("WelcomeScreen")).pack(anchor="w", padx=35, pady=(25, 10))
         
@@ -94,45 +107,69 @@ class SignupScreen(tk.Frame):
         super().__init__(parent, bg="#F8FAFC")
         self.controller = controller
         
-        card = tk.Frame(self, bg="white", highlightbackground="#E2E8F0", highlightthickness=1, bd=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=460, height=720)
+        card = _responsive_card(self, max_width=460, max_height=720)
 
-        tk.Button(card, text="← Back", font=("Helvetica", 10, "bold"), fg="#64748B", bg="white", bd=0, activebackground="white", cursor="hand2", command=lambda: controller.show_screen("WelcomeScreen")).pack(anchor="w", padx=40, pady=(15, 5))
+        # Scrollable interior so content doesn't clip on shorter windows
+        canvas_scroll = tk.Canvas(card, bg="white", bd=0, highlightthickness=0)
+        scrollbar = tk.Scrollbar(card, orient="vertical", command=canvas_scroll.yview)
+        self.inner = tk.Frame(canvas_scroll, bg="white")
+
+        self.inner.bind("<Configure>", lambda e: canvas_scroll.configure(scrollregion=canvas_scroll.bbox("all")))
+        canvas_scroll.create_window((0, 0), window=self.inner, anchor="nw")
+        canvas_scroll.configure(yscrollcommand=scrollbar.set)
+
+        canvas_scroll.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Bind mousewheel for scroll
+        def _on_mousewheel(event):
+            canvas_scroll.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas_scroll.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # Sync inner frame width with canvas width
+        def _sync_width(event):
+            canvas_scroll.itemconfig("all", width=event.width)
+        canvas_scroll.bind("<Configure>", _sync_width)
+
+        # --- Form content inside self.inner ---
+        inner = self.inner
+
+        tk.Button(inner, text="← Back", font=("Helvetica", 10, "bold"), fg="#64748B", bg="white", bd=0, activebackground="white", cursor="hand2", command=lambda: controller.show_screen("WelcomeScreen")).pack(anchor="w", padx=40, pady=(15, 5))
         
-        tk.Label(card, text="Create Your Account", font=("Helvetica", 22, "bold"), fg="#0F172A", bg="white").pack(anchor="w", padx=40, pady=2)
-        tk.Label(card, text="Get started with InterviewIQ", font=("Helvetica", 11), fg="#64748B", bg="white").pack(anchor="w", padx=40, pady=(0, 10))
+        tk.Label(inner, text="Create Your Account", font=("Helvetica", 22, "bold"), fg="#0F172A", bg="white").pack(anchor="w", padx=40, pady=2)
+        tk.Label(inner, text="Get started with InterviewIQ", font=("Helvetica", 11), fg="#64748B", bg="white").pack(anchor="w", padx=40, pady=(0, 10))
 
-        tk.Label(card, text="Full Name", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
-        self.ent_fullname = tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid")
+        tk.Label(inner, text="Full Name", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.ent_fullname = tk.Entry(inner, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid")
         self.ent_fullname.pack(fill="x", padx=40, ipady=4)
 
-        tk.Label(card, text="Email", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
-        self.ent_email = tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid")
+        tk.Label(inner, text="Email", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.ent_email = tk.Entry(inner, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid")
         self.ent_email.pack(fill="x", padx=40, ipady=4)
 
-        tk.Label(card, text="Password", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
-        self.ent_pass = tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid", show="*")
+        tk.Label(inner, text="Password", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.ent_pass = tk.Entry(inner, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid", show="*")
         self.ent_pass.pack(fill="x", padx=40, ipady=4)
 
-        tk.Label(card, text="Confirm Password", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
-        self.ent_confirm_pass = tk.Entry(card, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid", show="*")
+        tk.Label(inner, text="Confirm Password", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.ent_confirm_pass = tk.Entry(inner, font=("Helvetica", 11), bg="#F8FAFC", bd=1, relief="solid", show="*")
         self.ent_confirm_pass.pack(fill="x", padx=40, ipady=4)
 
         # AI/Tech Targeted Dropdown Menus
-        tk.Label(card, text="Branch", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
-        self.b_combo = ttk.Combobox(card, values=["Computer Science Engineering", "Artificial Intelligence & Data Science", "Information Technology", "Electronics & Communication"], font=("Helvetica", 11), state="readonly")
+        tk.Label(inner, text="Branch", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.b_combo = ttk.Combobox(inner, values=["Computer Science Engineering", "Artificial Intelligence & Data Science", "Information Technology", "Electronics & Communication"], font=("Helvetica", 11), state="readonly")
         self.b_combo.set("Artificial Intelligence & Data Science")
         self.b_combo.pack(fill="x", padx=40, ipady=2)
 
-        tk.Label(card, text="Designation", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
-        self.d_combo = ttk.Combobox(card, values=["AI Engineer", "Machine Learning Engineer", "Data Scientist", "NLP Researcher", "Computer Vision Specialist"], font=("Helvetica", 11), state="readonly")
+        tk.Label(inner, text="Designation", font=("Helvetica", 10, "bold"), fg="#475569", bg="white").pack(anchor="w", padx=40, pady=(4, 1))
+        self.d_combo = ttk.Combobox(inner, values=["AI Engineer", "Machine Learning Engineer", "Data Scientist", "NLP Researcher", "Computer Vision Specialist"], font=("Helvetica", 11), state="readonly")
         self.d_combo.set("AI Engineer")
         self.d_combo.pack(fill="x", padx=40, ipady=2)
 
         self.resume_path = None
-        self.btn_resume = tk.Button(card, text="Upload Resume", font=("Helvetica", 11), bg="#EFF6FF", fg="#2563EB", bd=1, relief="groove", cursor="hand2", command=self.upload_resume)
+        self.btn_resume = tk.Button(inner, text="Upload Resume", font=("Helvetica", 11), bg="#EFF6FF", fg="#2563EB", bd=1, relief="groove", cursor="hand2", command=self.upload_resume)
         self.btn_resume.pack(fill="x", padx=40, pady=(12, 12), ipady=6)
-        tk.Button(card, text="Complete Profile", font=("Helvetica", 12, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", bd=0, cursor="hand2", command=self.register).pack(fill="x", padx=40, ipady=8)
+        tk.Button(inner, text="Complete Profile", font=("Helvetica", 12, "bold"), bg="#2563EB", fg="white", activebackground="#1D4ED8", activeforeground="white", bd=0, cursor="hand2", command=self.register).pack(fill="x", padx=40, ipady=8, pady=(0, 15))
 
     def upload_resume(self):
         import os

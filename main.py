@@ -10,6 +10,7 @@ class InterviewIQApp(tk.Tk):
 
         self.title("InterviewIQ")
         self.geometry("1100x780")
+        self.minsize(800, 600)
         self.configure(bg="#F8FAFC")
 
         # Global Session variables
