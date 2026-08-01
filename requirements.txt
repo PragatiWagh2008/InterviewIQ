@@ -1,0 +1,17 @@
+# Core runtime dependencies
+pypdf>=5.0.0
+Pillow>=10.0.0
+python-dotenv>=1.0.0
+
+# Optional AI integrations
+# Uncomment these if you want real AI-backed interview features.
+# openai>=1.0.0
+
+# Optional speech input support
+# Uncomment these if you want microphone-based speech assistance.
+# speechrecognition>=3.10.0
+# PyAudio>=0.2.11
+
+# Note: tkinter, sqlite3, json, os, pathlib, re, hashlib, hmac, secrets,
+# zipfile, and datetime are part of Python's standard library and do not
+# need to be installed with pip.

@@ -1,0 +1,160 @@
+{
+  "questions": [
+    {
+      "id": 1,
+      "text": "A primary goal of Artificial Intelligence is to...",
+      "options": [
+        "A. Create artificial marketing slogans",
+        "B. Mimic or automate aspects of human intelligence",
+        "C. Replace all network protocols",
+        "D. Store unstructured data permanently"
+      ],
+      "correct": "B. Mimic or automate aspects of human intelligence",
+      "difficulty": "Easy",
+      "topic": "AI Fundamentals"
+    },
+    {
+      "id": 2,
+      "text": "Which metric is most useful when false negatives are very costly?",
+      "options": [
+        "A. Precision",
+        "B. Recall",
+        "C. Accuracy alone",
+        "D. Training loss only"
+      ],
+      "correct": "B. Recall",
+      "difficulty": "Easy",
+      "topic": "ML Metrics"
+    },
+    {
+      "id": 3,
+      "text": "Overfitting typically means a model...",
+      "options": [
+        "A. Performs well on unseen data only",
+        "B. Fits training data well but generalizes poorly",
+        "C. Always underuses features",
+        "D. Cannot be regularized"
+      ],
+      "correct": "B. Fits training data well but generalizes poorly",
+      "difficulty": "Easy",
+      "topic": "ML Fundamentals"
+    },
+    {
+      "id": 4,
+      "text": "In a Transformer, self-attention mainly helps the model...",
+      "options": [
+        "A. Sort tokens alphabetically",
+        "B. Weigh relationships between tokens in a sequence",
+        "C. Compress images into JPEG",
+        "D. Replace gradient descent"
+      ],
+      "correct": "B. Weigh relationships between tokens in a sequence",
+      "difficulty": "Moderate",
+      "topic": "NLP"
+    },
+    {
+      "id": 5,
+      "text": "RAG (Retrieval-Augmented Generation) primarily improves LLMs by...",
+      "options": [
+        "A. Removing the need for embeddings",
+        "B. Fetching relevant external context before generation",
+        "C. Training only on synthetic labels",
+        "D. Disabling the attention mechanism"
+      ],
+      "correct": "B. Fetching relevant external context before generation",
+      "difficulty": "Moderate",
+      "topic": "AI Systems"
+    },
+    {
+      "id": 6,
+      "text": "Which technique is commonly used for imbalanced classification?",
+      "options": [
+        "A. Ignoring minority classes",
+        "B. Class weighting or resampling (e.g. SMOTE)",
+        "C. Always using MSE loss",
+        "D. Dropping validation sets"
+      ],
+      "correct": "B. Class weighting or resampling (e.g. SMOTE)",
+      "difficulty": "Moderate",
+      "topic": "Data Science"
+    },
+    {
+      "id": 7,
+      "text": "YOLO is best known as an architecture for...",
+      "options": [
+        "A. Language translation",
+        "B. Real-time object detection",
+        "C. Time-series forecasting only",
+        "D. Graph database indexing"
+      ],
+      "correct": "B. Real-time object detection",
+      "difficulty": "Moderate",
+      "topic": "Computer Vision"
+    },
+    {
+      "id": 8,
+      "text": "Concept drift in production ML refers to...",
+      "options": [
+        "A. GPU temperature rising",
+        "B. Changes in data/target distribution over time",
+        "C. Losing Git commit history",
+        "D. Increasing batch size only"
+      ],
+      "correct": "B. Changes in data/target distribution over time",
+      "difficulty": "Hard",
+      "topic": "ML Ops"
+    },
+    {
+      "id": 9,
+      "text": "LoRA adapters are mainly used to...",
+      "options": [
+        "A. Replace tokenization",
+        "B. Efficiently fine-tune large models with few trainable parameters",
+        "C. Compress PDFs",
+        "D. Speed up SQL joins"
+      ],
+      "correct": "B. Efficiently fine-tune large models with few trainable parameters",
+      "difficulty": "Hard",
+      "topic": "LLMs"
+    },
+    {
+      "id": 10,
+      "text": "For A/B testing, a p-value below a chosen alpha typically suggests...",
+      "options": [
+        "A. The sample size was zero",
+        "B. Evidence against the null hypothesis under the test assumptions",
+        "C. The model is always overfit",
+        "D. Metrics are identical"
+      ],
+      "correct": "B. Evidence against the null hypothesis under the test assumptions",
+      "difficulty": "Hard",
+      "topic": "Statistics"
+    },
+    {
+      "id": 11,
+      "text": "Which loss is commonly used for multi-class classification with softmax?",
+      "options": [
+        "A. Mean Absolute Error",
+        "B. Cross-entropy",
+        "C. SSIM",
+        "D. Earth Mover Distance only"
+      ],
+      "correct": "B. Cross-entropy",
+      "difficulty": "Easy",
+      "topic": "Deep Learning"
+    },
+    {
+      "id": 12,
+      "text": "ONNX / TensorRT are often used to...",
+      "options": [
+        "A. Write unit tests for CSS",
+        "B. Optimize and deploy models for faster inference",
+        "C. Train word embeddings from scratch only",
+        "D. Replace relational databases"
+      ],
+      "correct": "B. Optimize and deploy models for faster inference",
+      "difficulty": "Hard",
+      "topic": "Deployment"
+    }
+  ]
+}
