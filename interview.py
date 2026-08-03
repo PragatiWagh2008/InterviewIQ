@@ -246,10 +246,10 @@ class MockInterviewView(InternalBaseView):
         btn_panel.pack(side="right")
 
         self.btn_send = tk.Button(btn_panel, text="Send ➔", font=get_font("btn_sm"),
-                                  bg=COLORS["primary"], fg="white", bd=0, cursor="hand2",
-                                  activebackground=COLORS["primary_hover"], command=self.send_message)
+                                  bg=COLORS["ink"], fg="white", bd=0, cursor="hand2",
+                                  activebackground=COLORS["ink_soft"], command=self.send_message)
         self.btn_send.pack(fill="x", ipady=4, pady=(0, 6))
-        add_hover(self.btn_send, enter_bg=COLORS["primary_hover"], leave_bg=COLORS["primary"])
+        add_hover(self.btn_send, enter_bg=COLORS["ink_soft"], leave_bg=COLORS["ink"])
 
         self.btn_mic = tk.Button(btn_panel, text="🎙️ Speech Assist", font=get_font("caption"),
                                  bg=COLORS["bg"], fg=COLORS["text_secondary"], bd=0,
@@ -272,6 +272,7 @@ class MockInterviewView(InternalBaseView):
         return "break"
 
     def on_show(self):
+        self._update_sidebar_footer()
         email = self.controller.current_user_email
         user = get_user(email) if email else None
         if user:
@@ -426,7 +427,7 @@ class MockInterviewView(InternalBaseView):
         self.txt_msg.focus_set()
 
         self.btn_send.config(bg=COLORS["success"], text="✓ Sent")
-        self.after(400, lambda: self.btn_send.config(bg=COLORS["primary"], text="Send ➔"))
+        self.after(400, lambda: self.btn_send.config(bg=COLORS["ink"], text="Send ➔"))
 
         self.current_q_index += 1
 

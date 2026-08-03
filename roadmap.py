@@ -51,11 +51,11 @@ class McqPracticeView(InternalBaseView):
         self.lbl_feedback.pack(side="left")
 
         self.btn_next = tk.Button(self.footer, text="Next →", font=get_font("btn_sm"),
-                                  bg=COLORS["primary"], fg="white", bd=0, cursor="hand2",
-                                  activebackground=COLORS["primary_hover"],
+                                  bg=COLORS["ink"], fg="white", bd=0, cursor="hand2",
+                                  activebackground=COLORS["ink_soft"],
                                   command=self.next_question, state="disabled")
         self.btn_next.pack(side="right", ipadx=14, ipady=6)
-        add_hover(self.btn_next, enter_bg=COLORS["primary_hover"], leave_bg=COLORS["primary"])
+        add_hover(self.btn_next, enter_bg=COLORS["ink_soft"], leave_bg=COLORS["ink"])
 
         self.btn_restart = tk.Button(self.footer, text="Restart Quiz", font=get_font("small_b"),
                                      bg=COLORS["surface_alt"], fg=COLORS["text_secondary"], bd=0,
@@ -64,6 +64,7 @@ class McqPracticeView(InternalBaseView):
         add_hover(self.btn_restart, enter_bg=COLORS["surface_hover"], leave_bg=COLORS["surface_alt"])
 
     def on_show(self):
+        self._update_sidebar_footer()
         self.difficulty = getattr(self.controller, "difficulty", "Easy") or "Easy"
         self.lbl_meta.config(text=f"Difficulty: {self.difficulty}")
         if not self.questions or self.q_index == 0 and not self.answered:
@@ -110,23 +111,26 @@ class McqPracticeView(InternalBaseView):
         self.lbl_question.config(text=q.get("text", ""))
 
         correct = q.get("correct", "")
-        for opt in q.get("options", []):
-            f_opt = tk.Frame(self.options_box, bg=COLORS["bg"],
+        letters = "ABCD"
+        for idx, opt in enumerate(q.get("options", [])):
+            f_opt = tk.Frame(self.options_box, bg=COLORS["surface"],
                              highlightbackground=COLORS["border"], highlightthickness=1)
             f_opt.pack(fill="x", padx=35, pady=8, ipady=12)
 
-            indicator = tk.Label(f_opt, text="○", font=get_font("body_b"), fg=COLORS["text_muted"],
-                                 bg=COLORS["bg"], width=3)
+            letter = letters[idx] if idx < len(letters) else "?"
+            indicator = tk.Label(f_opt, text=letter, font=get_font("caption_b"), fg=COLORS["text_faint"],
+                                 bg=COLORS["surface"], width=3)
             indicator.pack(side="left", padx=(15, 0))
 
             lbl = tk.Label(f_opt, text=opt, font=get_font("body"),
-                           fg=COLORS["text_secondary"], bg=COLORS["bg"], wraplength=620, justify="left")
+                           fg=COLORS["text_secondary"], bg=COLORS["surface"], wraplength=620, justify="left")
             lbl.pack(side="left", padx=10)
 
             item = {
                 "frame": f_opt,
                 "label": lbl,
                 "indicator": indicator,
+                "letter": letter,
                 "option": opt,
                 "is_correct": opt == correct
             }
@@ -140,9 +144,9 @@ class McqPracticeView(InternalBaseView):
                 widget.bind("<Button-1>", _select)
                 widget.config(cursor="hand2")
 
-            add_hover(f_opt, enter_bg=COLORS["surface_alt"], leave_bg=COLORS["bg"])
-            add_hover(lbl, enter_bg=COLORS["surface_alt"], leave_bg=COLORS["bg"])
-            add_hover(indicator, enter_bg=COLORS["surface_alt"], leave_bg=COLORS["bg"])
+            add_hover(f_opt, enter_bg=COLORS["surface_alt"], leave_bg=COLORS["surface"])
+            add_hover(lbl, enter_bg=COLORS["surface_alt"], leave_bg=COLORS["surface"])
+            add_hover(indicator, enter_bg=COLORS["surface_alt"], leave_bg=COLORS["surface"])
 
     def _handle_option_select(self, selected_text):
         self.answered = True
@@ -157,19 +161,19 @@ class McqPracticeView(InternalBaseView):
             is_correct = item["is_correct"]
 
             if is_correct:
-                f.config(bg=COLORS["success_bg"], highlightbackground=COLORS["success_border"])
-                lbl.config(bg=COLORS["success_bg"], fg=COLORS["success_dark"], font=get_font("body_b"))
-                ind.config(bg=COLORS["success_bg"], text="✓", fg=COLORS["success_dark"])
+                f.config(bg=COLORS["success"], highlightbackground=COLORS["success"])
+                lbl.config(bg=COLORS["success"], fg="white", font=get_font("body_b"))
+                ind.config(bg=COLORS["success"], text="✓", fg="white")
                 if is_this:
                     chosen_correct = True
             elif is_this and not is_correct:
-                f.config(bg=COLORS["danger_bg"], highlightbackground=COLORS["danger_border"])
-                lbl.config(bg=COLORS["danger_bg"], fg=COLORS["danger"], font=get_font("body_b"))
-                ind.config(bg=COLORS["danger_bg"], text="✗", fg=COLORS["danger"])
+                f.config(bg=COLORS["danger"], highlightbackground=COLORS["danger"])
+                lbl.config(bg=COLORS["danger"], fg="white", font=get_font("body_b"))
+                ind.config(bg=COLORS["danger"], text="✗", fg="white")
             else:
-                f.config(bg=COLORS["bg"], highlightbackground=COLORS["border"])
-                lbl.config(bg=COLORS["bg"], fg=COLORS["text_faint"], font=get_font("body"))
-                ind.config(bg=COLORS["bg"], text="○", fg=COLORS["text_faint"])
+                f.config(bg=COLORS["surface"], highlightbackground=COLORS["border"])
+                lbl.config(bg=COLORS["surface"], fg=COLORS["text_faint"], font=get_font("body"))
+                ind.config(bg=COLORS["surface"], text=item["letter"], fg=COLORS["text_faint"])
 
             for w in (f, lbl, ind):
                 w.unbind("<Button-1>")
@@ -358,6 +362,7 @@ class PerformanceView(InternalBaseView):
 
     def on_show(self):
         email = self.controller.current_user_email
+        self._update_sidebar_footer()
         if not email:
             return
         summary = get_performance_summary(email)

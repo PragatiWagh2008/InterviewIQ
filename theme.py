@@ -1,7 +1,9 @@
 """
 InterviewIQ — Centralized Theme Engine
 Provides colors, hover helpers, card factories, focus glow, and font scaling.
+Palette mirrors the "AI Interview Pro" reference design (ink / cream / teal / coral).
 """
+import math
 import tkinter as tk
 import tkinter.font as tkfont
 
@@ -10,61 +12,73 @@ import tkinter.font as tkfont
 # Color Palette
 # ─────────────────────────────────────────────
 COLORS = {
+    # Ink / navy (primary CTAs, sidebar, selected states)
+    "ink":              "#12213B",
+    "ink_soft":         "#1C2E4E",
+    "sidebar":          "#12213B",
+    "sidebar_text":     "#C7CEDD",
+    "sidebar_muted":    "#9AA5B8",
+
     # Surfaces
-    "bg":              "#F8FAFC",
-    "surface":         "#FFFFFF",
-    "surface_alt":     "#F1F5F9",
-    "surface_hover":   "#E2E8F0",
+    "bg":               "#F7F5F1",
+    "surface":          "#FFFFFF",
+    "surface_alt":      "#EFEEE8",
+    "surface_hover":    "#E7E4DD",
 
     # Borders
-    "border":          "#E2E8F0",
-    "border_light":    "#CBD5E1",
-    "border_focus":    "#2563EB",
+    "border":           "#E7E4DD",
+    "border_light":     "#D8D4CB",
+    "border_focus":     "#17A98C",
 
-    # Primary
-    "primary":         "#2563EB",
-    "primary_hover":   "#1D4ED8",
-    "primary_light":   "#EFF6FF",
-    "primary_lighter": "#DBEAFE",
+    # Primary accent — teal
+    "primary":          "#17A98C",
+    "primary_hover":    "#0E7A63",
+    "primary_light":    "#E7F5F0",
+    "primary_lighter":  "#D3EFE6",
+
+    # Secondary accent — coral
+    "coral":            "#FF6B4A",
+    "coral_soft":       "#FFE3DA",
+    "mint":             "#E7F5F0",
 
     # Text
-    "text":            "#0F172A",
-    "text_secondary":  "#475569",
-    "text_muted":      "#64748B",
-    "text_faint":      "#94A3B8",
+    "text":             "#12213B",
+    "text_secondary":   "#1C2E4E",
+    "text_muted":       "#657289",
+    "text_faint":       "#9AA5B8",
 
-    # Accent — Success
-    "success":         "#10B981",
-    "success_bg":      "#ECFDF5",
-    "success_border":  "#D1FAE5",
-    "success_text":    "#059669",
-    "success_dark":    "#166534",
+    # Accent — Success (teal family)
+    "success":          "#17A98C",
+    "success_bg":       "#E7F5F0",
+    "success_border":   "#CDE8E0",
+    "success_text":     "#0E7A63",
+    "success_dark":     "#0E7A63",
 
-    # Accent — Danger
-    "danger":          "#EF4444",
-    "danger_bg":       "#FEF2F2",
-    "danger_border":   "#FEE2E2",
+    # Accent — Danger (coral family)
+    "danger":           "#FF6B4A",
+    "danger_bg":        "#FFE3DA",
+    "danger_border":    "#FFD2C4",
 
     # Accent — Warning / Streak
-    "streak_bg":       "#FFF7ED",
-    "streak_border":   "#FFEDD5",
-    "streak_text":     "#C2410C",
+    "streak_bg":        "#FFE3DA",
+    "streak_border":    "#FFD2C4",
+    "streak_text":      "#D14A2A",
 
     # Accent — Info
-    "info_bg":         "#F0F9FF",
-    "info_border":     "#E0F2FE",
-    "info_text":       "#0369A1",
-    "info_dark":       "#0E7490",
+    "info_bg":          "#E7F5F0",
+    "info_border":      "#CDE8E0",
+    "info_text":        "#0E7A63",
+    "info_dark":        "#0E7A63",
 }
 
 
 def _pick_ui_font():
-    """Prefer Segoe UI; fall back to fonts commonly available on Linux/macOS."""
+    """Prefer Inter (the reference body font); fall back to Segoe UI on Windows."""
     try:
         available = set(tkfont.families())
     except Exception:
         available = set()
-    for name in ("Segoe UI", "Inter", "Ubuntu", "Noto Sans", "DejaVu Sans",
+    for name in ("Inter", "Segoe UI", "Ubuntu", "Noto Sans", "DejaVu Sans",
                  "Helvetica Neue", "Arial", "sans-serif"):
         if not available or name in available or name == "sans-serif":
             return name
@@ -100,7 +114,7 @@ _FONT_ROLES = {
     "btn_sm": (11, "bold"),
     "nav": (11, "normal"),
     "nav_active": (11, "bold"),
-    "brand": (14, "bold"),
+    "brand": (15, "bold"),
     "chat": (11, "normal"),
     "chat_hdr": (10, "bold"),
 }
@@ -159,7 +173,6 @@ def create_card(parent, bg=None, border_color=None, hover=False, hover_border=No
 
         card.bind("<Enter>", _enter)
         card.bind("<Leave>", _leave)
-        # Also bind to children so hovering inner labels doesn't flicker
 
         def _bind_children(widget):
             for child in widget.winfo_children():
@@ -295,3 +308,115 @@ def bind_mousewheel(widget, canvas):
 
     widget.bind("<Enter>", _bind)
     widget.bind("<Leave>", _unbind)
+
+
+# ─────────────────────────────────────────────
+# Logo (coral + teal infinity mark from the reference design)
+# ─────────────────────────────────────────────
+def _svg_arc_points(x1, y1, x2, y2, rx, ry, phi, large_arc, sweep, steps=32):
+    """Convert an SVG elliptical-arc command into a polyline of points."""
+    if rx == 0 or ry == 0:
+        return [(x1, y1), (x2, y2)]
+    rx, ry = abs(rx), abs(ry)
+    cphi, sphi = math.cos(phi), math.sin(phi)
+
+    dx = (x1 - x2) / 2.0
+    dy = (y1 - y2) / 2.0
+    x1p = cphi * dx + sphi * dy
+    y1p = -sphi * dx + cphi * dy
+
+    lam = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry)
+    if lam > 1:
+        s = math.sqrt(lam)
+        rx *= s
+        ry *= s
+
+    num = rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p
+    den = rx * rx * y1p * y1p + ry * ry * x1p * x1p
+    if den == 0:
+        return [(x1, y1), (x2, y2)]
+    coef = math.sqrt(max(num / den, 0.0))
+    sign = -1 if large_arc == sweep else 1
+    cxp = sign * coef * (rx * y1p / ry)
+    cyp = sign * coef * (-ry * x1p / rx)
+
+    cx = cphi * cxp - sphi * cyp + (x1 + x2) / 2.0
+    cy = sphi * cxp + cphi * cyp + (y1 + y2) / 2.0
+
+    def _angle(ux, uy, vx, vy):
+        dot = ux * vx + uy * vy
+        mag = math.hypot(ux, uy) * math.hypot(vx, vy)
+        ang = math.acos(max(-1.0, min(1.0, dot / mag)))
+        if ux * vy - uy * vx < 0:
+            ang = -ang
+        return ang
+
+    theta1 = _angle(1, 0, (x1 - cx) / rx, (y1 - cy) / ry)
+    theta2 = _angle((x1 - cx) / rx, (y1 - cy) / ry, (x2 - cx) / rx, (y2 - cy) / ry)
+    delta = theta2
+    if not sweep and delta > 0:
+        delta -= 2 * math.pi
+    elif sweep and delta < 0:
+        delta += 2 * math.pi
+
+    n = max(int(steps * abs(delta) / math.pi) + 2, 8)
+    pts = []
+    for i in range(n + 1):
+        t = theta1 + delta * (i / n)
+        pts.append((cx + rx * math.cos(t) * cphi - ry * math.sin(t) * sphi,
+                    cy + rx * math.cos(t) * sphi + ry * math.sin(t) * cphi))
+    return pts
+
+
+def draw_logo(canvas, size=None):
+    """Render the InterviewIQ infinity logo (coral + teal + white dot) on a canvas."""
+    canvas.delete("all")
+    cw = canvas.winfo_width() if canvas.winfo_width() > 1 else (size or 40)
+    ch = canvas.winfo_height() if canvas.winfo_height() > 1 else (size or 40)
+    scale = min(cw, ch) / 130.0
+    ox, oy = cw / 2.0, ch / 2.0
+
+    def P(x, y):
+        return (ox + x * scale, oy + y * scale)
+
+    def arc_pts(x1, y1, x2, y2, r, large, sweep):
+        return [P(x, y) for x, y in _svg_arc_points(x1, y1, x2, y2, r, r, 0.0, large, sweep)]
+
+    # Left coral crescent
+    outer_l = arc_pts(-37, -11, 11, 37, 37, 1, 1)
+    inner_l = arc_pts(-1, 37, -37, 1, 25, 0, 0)
+    left_pts = outer_l + [P(-1, 37)] + inner_l + [P(-37, -11)]
+    canvas.create_polygon(left_pts, fill=COLORS["coral"], outline="", smooth=True)
+
+    # Right teal crescent
+    outer_r = arc_pts(37, 11, -11, -37, 37, 1, 1)
+    inner_r = arc_pts(1, -37, 37, -1, 25, 0, 0)
+    right_pts = outer_r + [P(1, -37)] + inner_r + [P(37, 11)]
+    canvas.create_polygon(right_pts, fill=COLORS["primary"], outline="", smooth=True)
+
+    # Round end caps
+    for pt, color in ((P(-37, 1), COLORS["coral"]), (P(37, -1), COLORS["primary"])):
+        rd = 9 * scale
+        canvas.create_oval(pt[0] - rd, pt[1] - rd, pt[0] + rd, pt[1] + rd, fill=color, outline="")
+
+    # White center dot
+    c = P(0, 0)
+    cd = 8 * scale
+    canvas.create_oval(c[0] - cd, c[1] - cd, c[0] + cd, c[1] + cd, fill="#FFFFFF", outline="")
+
+
+# ─────────────────────────────────────────────
+# Decorative wave (bottom of the welcome card)
+# ─────────────────────────────────────────────
+def draw_wave(canvas):
+    """Draw the teal → ink dome from the welcome screen reference design."""
+    canvas.delete("all")
+    w = canvas.winfo_width() if canvas.winfo_width() > 1 else 300
+    h = canvas.winfo_height() if canvas.winfo_height() > 1 else 90
+
+    # Deep ink dome (peeks out beneath the teal for depth)
+    canvas.create_oval(-w * 0.25, h * 0.55, w * 1.25, h * 2.6, fill=COLORS["ink"], outline="")
+    # Teal dome
+    canvas.create_oval(-w * 0.22, h * 0.35, w * 1.22, h * 2.4, fill=COLORS["primary"], outline="")
+    # Coral accent sliver
+    canvas.create_oval(w * 0.55, h * 0.5, w * 1.35, h * 2.55, fill=COLORS["coral"], outline="")

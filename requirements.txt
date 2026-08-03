@@ -1,14 +1,15 @@
-# Core runtime dependencies
+# InterviewIQ — Core runtime dependencies
 pypdf>=5.0.0
 Pillow>=10.0.0
 python-dotenv>=1.0.0
 
-# Optional AI integrations
-# Uncomment these if you want real AI-backed interview features.
+# Optional: real AI-backed interview questions & answer evaluation.
+# The app runs fine without these using built-in heuristics.
+# Uncomment to enable, then set AI_API_KEY / AI_MODEL / AI_PROVIDER in .env
 # openai>=1.0.0
 
-# Optional speech input support
-# Uncomment these if you want microphone-based speech assistance.
+# Optional: microphone-based speech assistance in the mock interview.
+# When SpeechRecognition is not installed the app inserts a practice prompt.
 # speechrecognition>=3.10.0
 # PyAudio>=0.2.11
 

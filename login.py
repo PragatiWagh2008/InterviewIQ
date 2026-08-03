@@ -7,7 +7,7 @@ from database import (
     save_user, extract_resume_data, authenticate, update_password,
     save_remembered_email, load_remembered_email, clear_remembered_email, get_user
 )
-from theme import COLORS, get_font, add_hover, add_focus_glow, bind_mousewheel
+from theme import COLORS, get_font, add_hover, add_focus_glow, bind_mousewheel, draw_logo, draw_wave
 
 
 def _responsive_card(parent, max_width, max_height):
@@ -37,39 +37,42 @@ class WelcomeScreen(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COLORS["bg"])
 
-        card = _responsive_card(self, max_width=420, max_height=500)
+        card = _responsive_card(self, max_width=420, max_height=580)
 
-        canvas = tk.Canvas(card, width=60, height=60, bg=COLORS["surface"], bd=0, highlightthickness=0)
-        canvas.pack(pady=(40, 15))
-        canvas.create_polygon(30, 10, 10, 50, 50, 50, fill=COLORS["primary"], outline="")
-        canvas.create_polygon(30, 25, 20, 45, 40, 45, fill=COLORS["surface"], outline="")
+        logo_c = tk.Canvas(card, width=66, height=66, bg=COLORS["surface"], bd=0, highlightthickness=0)
+        logo_c.pack(pady=(42, 16))
+        draw_logo(logo_c, 66)
 
         tk.Label(card, text="InterviewIQ", font=get_font("h1"),
                  fg=COLORS["text"], bg=COLORS["surface"]).pack(pady=2)
         tk.Label(card, text="An AI-powered interview preparation platform",
-                 font=get_font("body"), fg=COLORS["text_muted"], bg=COLORS["surface"]).pack(pady=(0, 30))
+                 font=get_font("body"), fg=COLORS["text_muted"], bg=COLORS["surface"]).pack(pady=(0, 28))
 
         btn_login = tk.Button(card, text="I have an account", font=get_font("btn"),
-                              bg=COLORS["primary"], fg="white",
-                              activebackground=COLORS["primary_hover"], activeforeground="white",
+                              bg=COLORS["ink"], fg="white",
+                              activebackground=COLORS["ink_soft"], activeforeground="white",
                               bd=0, cursor="hand2",
                               command=lambda: controller.show_screen("LoginScreen"))
-        btn_login.pack(fill="x", padx=45, pady=10, ipady=10)
-        add_hover(btn_login, enter_bg=COLORS["primary_hover"], leave_bg=COLORS["primary"])
+        btn_login.pack(fill="x", padx=45, pady=8, ipady=10)
+        add_hover(btn_login, enter_bg=COLORS["ink_soft"], leave_bg=COLORS["ink"])
 
         tk.Label(card, text="Login to continue", font=get_font("caption"),
                  fg=COLORS["text_faint"], bg=COLORS["surface"]).pack()
 
         btn_signup = tk.Button(card, text="I'm new here", font=get_font("btn"),
-                               bg=COLORS["surface"], fg=COLORS["primary"],
+                               bg=COLORS["surface"], fg=COLORS["ink"],
                                highlightbackground=COLORS["border_light"], highlightthickness=1,
                                bd=0, activebackground=COLORS["surface_alt"], cursor="hand2",
                                command=lambda: controller.show_screen("SignupScreen"))
-        btn_signup.pack(fill="x", padx=45, pady=(20, 5), ipady=10)
+        btn_signup.pack(fill="x", padx=45, pady=(16, 6), ipady=10)
         add_hover(btn_signup, enter_bg=COLORS["primary_light"], leave_bg=COLORS["surface"])
 
         tk.Label(card, text="Create a new account", font=get_font("caption"),
                  fg=COLORS["text_faint"], bg=COLORS["surface"]).pack()
+
+        wave_c = tk.Canvas(card, height=88, bg=COLORS["surface"], bd=0, highlightthickness=0)
+        wave_c.pack(fill="x", pady=(24, 0))
+        wave_c.bind("<Configure>", lambda e: draw_wave(wave_c))
 
 
 def _validate_email(value: str) -> bool:
@@ -145,11 +148,11 @@ class LoginScreen(tk.Frame):
         btn_forgot.pack(side="right")
         add_hover(btn_forgot, enter_fg=COLORS["primary_hover"], leave_fg=COLORS["primary"])
 
-        btn_submit = tk.Button(card, text="Login", font=get_font("btn"), bg=COLORS["primary"], fg="white",
-                               activebackground=COLORS["primary_hover"], activeforeground="white",
+        btn_submit = tk.Button(card, text="Login", font=get_font("btn"), bg=COLORS["ink"], fg="white",
+                               activebackground=COLORS["ink_soft"], activeforeground="white",
                                bd=0, cursor="hand2", command=self.login)
         btn_submit.pack(fill="x", padx=35, pady=(20, 10), ipady=10)
-        add_hover(btn_submit, enter_bg=COLORS["primary_hover"], leave_bg=COLORS["primary"])
+        add_hover(btn_submit, enter_bg=COLORS["ink_soft"], leave_bg=COLORS["ink"])
 
         tk.Label(card, text="Demo: demo@example.com / password123", font=get_font("caption"),
                  fg=COLORS["text_faint"], bg=COLORS["surface"]).pack(pady=(0, 10))
@@ -302,17 +305,19 @@ class SignupScreen(tk.Frame):
 
         self.resume_path = None
         self.btn_resume = tk.Button(inner, text="📎 Upload Resume (PDF / DOCX / TXT)", font=get_font("body"),
-                                    bg=COLORS["primary_light"], fg=COLORS["primary"], bd=1, relief="groove",
-                                    cursor="hand2", command=self.upload_resume)
+                                    bg=COLORS["ink"], fg="white",
+                                    activebackground=COLORS["ink_soft"], activeforeground="white",
+                                    bd=0, cursor="hand2", command=self.upload_resume)
         self.btn_resume.pack(fill="x", padx=40, pady=(12, 12), ipady=6)
-        add_hover(self.btn_resume, enter_bg=COLORS["primary_lighter"], leave_bg=COLORS["primary_light"])
+        add_hover(self.btn_resume, enter_bg=COLORS["ink_soft"], leave_bg=COLORS["ink"])
 
         btn_register = tk.Button(inner, text="Complete Profile", font=get_font("btn"),
-                                 bg=COLORS["primary"], fg="white",
-                                 activebackground=COLORS["primary_hover"], activeforeground="white",
+                                 bg=COLORS["surface"], fg=COLORS["ink"],
+                                 highlightbackground=COLORS["border_light"], highlightthickness=1,
+                                 activebackground=COLORS["surface_alt"],
                                  bd=0, cursor="hand2", command=self.register)
         btn_register.pack(fill="x", padx=40, ipady=8, pady=(0, 15))
-        add_hover(btn_register, enter_bg=COLORS["primary_hover"], leave_bg=COLORS["primary"])
+        add_hover(btn_register, enter_bg=COLORS["primary_light"], leave_bg=COLORS["surface"])
 
     def upload_resume(self):
         file_path = filedialog.askopenfilename(

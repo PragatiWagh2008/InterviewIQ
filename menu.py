@@ -1,8 +1,9 @@
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk
-from theme import COLORS, get_font, add_hover, create_card, animate_arc, pulse_label
+from theme import COLORS, get_font, add_hover, create_card, animate_arc, draw_logo
 from database import (
-    get_user, get_streak, get_week_activity, update_user_preferences,
+    get_user, get_week_activity, update_user_preferences,
     improve_skill_extraction
 )
 
@@ -15,26 +16,27 @@ class InternalBaseView(tk.Frame):
         super().__init__(parent, bg=COLORS["bg"])
         self.controller = controller
 
-        sidebar = tk.Frame(self, bg=COLORS["surface"], highlightbackground=COLORS["border"], highlightthickness=1)
+        sidebar = tk.Frame(self, bg=COLORS["sidebar"], highlightbackground=COLORS["border"], highlightthickness=0)
         sidebar.pack(fill="y", side="left")
         sidebar.pack_propagate(False)
 
         def _resize_sidebar(event):
-            w = max(200, min(260, int(event.width * 0.22)))
+            w = max(190, min(250, int(event.width * 0.22)))
             sidebar.config(width=w)
         self.bind("<Configure>", _resize_sidebar)
-        sidebar.config(width=240)
+        sidebar.config(width=232)
 
-        brand_f = tk.Frame(sidebar, bg=COLORS["surface"])
-        brand_f.pack(fill="x", pady=(30, 35), padx=20)
+        brand_f = tk.Frame(sidebar, bg=COLORS["sidebar"])
+        brand_f.pack(fill="x", pady=(28, 34), padx=18)
 
-        logo_c = tk.Canvas(brand_f, width=28, height=28, bg=COLORS["surface"], bd=0, highlightthickness=0)
+        logo_c = tk.Canvas(brand_f, width=28, height=28, bg=COLORS["sidebar"], bd=0, highlightthickness=0)
         logo_c.pack(side="left")
-        logo_c.create_polygon(14, 2, 2, 26, 26, 26, fill=COLORS["primary"])
-        logo_c.create_polygon(14, 9, 8, 22, 20, 22, fill=COLORS["surface"])
+        draw_logo(logo_c, 28)
 
-        tk.Label(brand_f, text="InterviewIQ", font=get_font("brand"),
-                 fg=COLORS["primary"], bg=COLORS["surface"]).pack(side="left", padx=10)
+        tk.Label(brand_f, text="Interview", font=get_font("brand"),
+                 fg="#FFFFFF", bg=COLORS["sidebar"]).pack(side="left", padx=(9, 0))
+        tk.Label(brand_f, text="IQ", font=get_font("brand"),
+                 fg=COLORS["primary"], bg=COLORS["sidebar"]).pack(side="left")
 
         nav_routes = [
             ("👤  Profile",        "MainDashboard"),
@@ -50,15 +52,12 @@ class InternalBaseView(tk.Frame):
             is_active = (plain_label == title_text)
             is_logout = (view_target == "__logout__")
 
-            fg_color = COLORS["danger"] if is_logout else (COLORS["primary"] if is_active else COLORS["text_secondary"])
-            bg_color = COLORS["primary_light"] if is_active else COLORS["surface"]
+            fg_color = "#FFFFFF" if is_active else (COLORS["danger"] if is_logout else COLORS["sidebar_text"])
+            bg_color = COLORS["primary"] if is_active else COLORS["sidebar"]
             font = get_font("nav_active") if is_active else get_font("nav")
 
-            row_frame = tk.Frame(sidebar, bg=COLORS["surface"])
-            row_frame.pack(fill="x", padx=(0, 12), pady=3)
-
-            accent_bar = tk.Frame(row_frame, bg=COLORS["primary"] if is_active else COLORS["surface"], width=4)
-            accent_bar.pack(side="left", fill="y")
+            row_frame = tk.Frame(sidebar, bg=COLORS["sidebar"])
+            row_frame.pack(fill="x", padx=(12, 12), pady=2)
 
             def _nav(target=view_target):
                 if target == "__logout__":
@@ -67,13 +66,24 @@ class InternalBaseView(tk.Frame):
                     controller.show_screen(target)
 
             btn = tk.Button(row_frame, text=label, font=font, fg=fg_color, bg=bg_color,
-                            bd=0, anchor="w", cursor="hand2", activebackground=COLORS["surface_hover"],
-                            command=_nav)
-            btn.pack(fill="x", side="left", expand=True, padx=(8, 4), ipady=9)
+                            bd=0, anchor="w", cursor="hand2",
+                            activebackground=COLORS["primary_hover"] if is_active else COLORS["ink_soft"],
+                            activeforeground="#FFFFFF", command=_nav)
+            btn.pack(fill="x", side="left", expand=True, padx=(4, 2), ipady=9)
 
             if not is_active:
-                hover_bg = COLORS["danger_bg"] if is_logout else COLORS["surface_alt"]
-                add_hover(btn, enter_bg=hover_bg, leave_bg=bg_color)
+                add_hover(btn, enter_bg=COLORS["ink_soft"], leave_bg=bg_color)
+
+        self.sidebar_foot = tk.Frame(sidebar, bg=COLORS["sidebar"])
+        self.sidebar_foot.pack(side="bottom", fill="x", padx=18, pady=(0, 22))
+
+        tk.Frame(self.sidebar_foot, bg="#2A3A5E", height=1).pack(fill="x", pady=(0, 12))
+
+        tk.Label(self.sidebar_foot, text="Prepping for", font=get_font("caption"),
+                 fg=COLORS["sidebar_muted"], bg=COLORS["sidebar"]).pack(anchor="w")
+        self.lbl_foot_target = tk.Label(self.sidebar_foot, text="", font=get_font("caption_b"),
+                                        fg="#FFFFFF", bg=COLORS["sidebar"])
+        self.lbl_foot_target.pack(anchor="w")
 
         self.workspace = tk.Frame(self, bg=COLORS["bg"])
         self.workspace.pack(fill="both", expand=True, padx=35, pady=25)
@@ -83,6 +93,17 @@ class InternalBaseView(tk.Frame):
             py = max(12, min(30, int(event.height * 0.03)))
             self.workspace.pack_configure(padx=px, pady=py)
         self.bind("<Configure>", _resize_workspace, add="+")
+
+    def _update_sidebar_footer(self):
+        email = self.controller.current_user_email
+        company = getattr(self.controller, "target_company", "Google") or "Google"
+        designation = "SDE"
+        if email:
+            user = get_user(email)
+            if user:
+                company = user.get("target_company") or company
+                designation = user.get("designation") or designation
+        self.lbl_foot_target.config(text=f"{company} · {designation}")
 
 
 def _draw_bar_chart(canvas, days, heights, bar_color=None, show_values=True):
@@ -123,72 +144,153 @@ def _draw_bar_chart(canvas, days, heights, bar_color=None, show_values=True):
             canvas.create_text(x0 + bar_width / 2, y0 - 10, text=str(val), font=get_font("caption_b"), fill=COLORS["text_secondary"])
 
 
+class PillRow(tk.Frame):
+    """Wrap-row of selectable pill buttons (company / difficulty chooser)."""
+
+    def __init__(self, parent, options, initial, on_change, specials=None, max_width=860):
+        super().__init__(parent, bg=COLORS["surface"])
+        self.on_change = on_change
+        self.value = initial
+        self.buttons = {}
+        self.specials = specials or {}
+
+        f = tkfont.Font(font=get_font("small_b"))
+        row = tk.Frame(self, bg=COLORS["surface"])
+        row.pack(fill="x", anchor="w")
+        row_w = 0
+        for opt in options:
+            w = f.measure(opt) + 48
+            if row_w > 0 and row_w + w > max_width:
+                row = tk.Frame(self, bg=COLORS["surface"])
+                row.pack(fill="x", anchor="w", pady=(8, 0))
+                row_w = 0
+            btn = self._make(row, opt)
+            btn.pack(side="left", padx=(0, 8))
+            row_w += w + 8
+            self.buttons[opt] = btn
+        self._apply_styles(initial)
+
+    def _make(self, parent, text):
+        return tk.Button(parent, text=text, font=get_font("small_b"), bd=0, relief="flat",
+                         cursor="hand2", padx=15, pady=6, command=lambda t=text: self._select(t))
+
+    def _select(self, text):
+        self.value = text
+        self._apply_styles(text)
+        if self.on_change:
+            self.on_change(text)
+
+    def set_value(self, text):
+        self.value = text
+        self._apply_styles(text)
+
+    def _apply_styles(self, selected):
+        for opt, btn in self.buttons.items():
+            if self.specials.get(opt) == "teal":
+                if opt == selected:
+                    btn.config(fg="#FFFFFF", bg=COLORS["primary"],
+                               highlightbackground=COLORS["primary"], highlightthickness=1,
+                               activebackground=COLORS["primary_hover"], activeforeground="#FFFFFF")
+                else:
+                    btn.config(fg=COLORS["primary_hover"], bg=COLORS["primary_light"],
+                               highlightbackground=COLORS["primary"], highlightthickness=1,
+                               activebackground=COLORS["primary_light"],
+                               activeforeground=COLORS["primary_hover"])
+            else:
+                if opt == selected:
+                    btn.config(fg="#FFFFFF", bg=COLORS["ink"],
+                               highlightbackground=COLORS["ink"], highlightthickness=1,
+                               activebackground=COLORS["ink_soft"], activeforeground="#FFFFFF")
+                else:
+                    btn.config(fg=COLORS["text_muted"], bg=COLORS["surface"],
+                               highlightbackground=COLORS["border"], highlightthickness=1,
+                               activebackground=COLORS["primary_light"],
+                               activeforeground=COLORS["text_muted"])
+
+
 class MainDashboard(InternalBaseView):
     def __init__(self, parent, controller):
         super().__init__(parent, controller, "Profile")
 
         header_f = tk.Frame(self.workspace, bg=COLORS["bg"])
-        header_f.pack(fill="x", pady=(0, 10))
-        tk.Label(header_f, text="Welcome Dashboard", font=get_font("h1"),
-                 fg=COLORS["text"], bg=COLORS["bg"]).pack(side="left")
+        header_f.pack(fill="x", pady=(0, 12))
 
-        self.streak_frame = tk.Frame(header_f, bg=COLORS["streak_bg"],
-                                     highlightbackground=COLORS["streak_border"], highlightthickness=1)
-        self.streak_frame.pack(side="right", padx=5)
-        self.streak_lbl = tk.Label(self.streak_frame, text="🔥 0 Day Streak", font=get_font("body_b"),
-                                   fg=COLORS["streak_text"], bg=COLORS["streak_bg"], padx=12, pady=6)
-        self.streak_lbl.pack()
-        pulse_label(self.streak_lbl, COLORS["streak_text"], "#EA580C", interval=900)
+        title_stack = tk.Frame(header_f, bg=COLORS["bg"])
+        title_stack.pack(side="left")
+
+        tk.Label(title_stack, text="DASHBOARD", font=get_font("caption_b"),
+                 fg=COLORS["primary_hover"], bg=COLORS["bg"]).pack(anchor="w")
+        self.lbl_greeting = tk.Label(title_stack, text="Good morning", font=get_font("h2"),
+                                     fg=COLORS["text"], bg=COLORS["bg"])
+        self.lbl_greeting.pack(anchor="w")
+
+        self.user_chip = tk.Frame(header_f, bg=COLORS["surface"],
+                                  highlightbackground=COLORS["border"], highlightthickness=1)
+        self.user_chip.pack(side="right", anchor="e")
+
+        self.avatar_canvas = tk.Canvas(self.user_chip, width=27, height=27,
+                                       bg=COLORS["surface"], bd=0, highlightthickness=0)
+        self.avatar_canvas.pack(side="left", padx=(4, 8), pady=4)
+
+        self.lbl_user = tk.Label(self.user_chip, text="", font=get_font("body_b"),
+                                 fg=COLORS["text"], bg=COLORS["surface"])
+        self.lbl_user.pack(side="left", padx=(0, 14))
+        self._draw_avatar()
 
         cards_f = tk.Frame(self.workspace, bg=COLORS["bg"])
-        cards_f.pack(fill="x", pady=10)
+        cards_f.pack(fill="x", pady=8)
 
-        flows = [
-            ("Prepare with\nMock Interview", "MockInterviewView", "📝"),
-            ("Take\nMCQ Quizzes",            "McqPracticeView",   "📋"),
-            ("View\nProgress",               "PerformanceView",   "📊"),
+        card_meta = [
+            ("Prepare with mock interview", "Talk it through with your AI interviewer", "💬", "a", "MockInterviewView"),
+            ("Take MCQ quizzes",            "Sharpen concepts, company-wise",            "📝", "b", "McqPracticeView"),
+            ("View progress",               "See how far you've come",                   "📊", "c", "PerformanceView"),
         ]
+        icon_bg = {"a": COLORS["mint"], "b": COLORS["coral_soft"], "c": "#EAEBFB"}
+        icon_fg = {"a": COLORS["primary_hover"], "b": COLORS["coral"], "c": "#5B5FE0"}
 
-        for i, (title, route, icon) in enumerate(flows):
+        for i, (title, sub, icon, tag, route) in enumerate(card_meta):
             cards_f.columnconfigure(i, weight=1, uniform="nav_cards")
 
             card = create_card(cards_f, hover=True, hover_border=COLORS["primary"])
-            card.grid(row=0, column=i, padx=(0 if i == 0 else 10, 0), sticky="nsew", ipady=15)
+            card.grid(row=0, column=i, padx=(0 if i == 0 else 10, 0), sticky="nsew", ipady=14)
 
-            tk.Label(card, text=icon, font=(get_font("body")[0], 20), bg=COLORS["surface"]).pack(anchor="w", padx=20, pady=(12, 2))
-            lbl_text = tk.Label(card, text=title, font=get_font("h4"),
-                                bg=COLORS["surface"], fg=COLORS["text"], justify="left")
-            lbl_text.pack(anchor="w", padx=20)
+            icon_box = tk.Frame(card, bg=icon_bg[tag], width=34, height=34)
+            icon_box.pack(anchor="w", padx=18, pady=(14, 10))
+            icon_box.pack_propagate(False)
+            tk.Label(icon_box, text=icon, font=(get_font("body")[0], 12),
+                     bg=icon_bg[tag], fg=icon_fg[tag]).pack(expand=True)
 
-            for widget in (card, lbl_text):
+            lbl_title = tk.Label(card, text=title, font=get_font("h4"),
+                                 bg=COLORS["surface"], fg=COLORS["text"], justify="left")
+            lbl_title.pack(anchor="w", padx=18)
+            lbl_sub = tk.Label(card, text=sub, font=get_font("small"),
+                               bg=COLORS["surface"], fg=COLORS["text_muted"], justify="left")
+            lbl_sub.pack(anchor="w", padx=18, pady=(2, 14))
+
+            for widget in (card, lbl_title, lbl_sub):
                 widget.bind("<Button-1>", lambda e, r=route: self.controller.show_screen(r))
                 widget.config(cursor="hand2")
 
         config_f = create_card(self.workspace)
-        config_f.pack(fill="x", pady=20, ipady=15, padx=2)
+        config_f.pack(fill="x", pady=16, ipady=6, padx=2)
 
-        row1 = tk.Frame(config_f, bg=COLORS["surface"])
-        row1.pack(fill="x", padx=25, pady=(15, 8))
-        tk.Label(row1, text="Choose Company Target", font=get_font("body_b"),
-                 fg=COLORS["text_secondary"], bg=COLORS["surface"], width=22, anchor="w").pack(side="left")
-        self.c_combo = ttk.Combobox(row1, values=["Google", "Microsoft", "Amazon", "Meta", "NVIDIA", "OpenAI", "Apple"],
-                                    font=get_font("body"), state="readonly", width=25)
-        self.c_combo.set("Google")
-        self.c_combo.pack(side="left", padx=10)
-        self.c_combo.bind("<<ComboboxSelected>>", self._save_prefs)
+        tk.Label(config_f, text="Choose company", font=get_font("h4"),
+                 fg=COLORS["text"], bg=COLORS["surface"]).pack(anchor="w", padx=24, pady=(14, 10))
+        self.company_pills = PillRow(
+            config_f, ["Google", "Microsoft", "Amazon", "Meta", "NVIDIA", "OpenAI", "Apple"],
+            "Google", self._save_company)
+        self.company_pills.pack(anchor="w", padx=24)
 
-        row2 = tk.Frame(config_f, bg=COLORS["surface"])
-        row2.pack(fill="x", padx=25, pady=8)
-        tk.Label(row2, text="Select Difficulty Level", font=get_font("body_b"),
-                 fg=COLORS["text_secondary"], bg=COLORS["surface"], width=22, anchor="w").pack(side="left")
-        self.d_combo = ttk.Combobox(row2, values=["Easy", "Moderate", "Hard"],
-                                    font=get_font("body"), state="readonly", width=25)
-        self.d_combo.set("Easy")
-        self.d_combo.pack(side="left", padx=10)
-        self.d_combo.bind("<<ComboboxSelected>>", self._save_prefs)
+        tk.Label(config_f, text="Select difficulty", font=get_font("h4"),
+                 fg=COLORS["text"], bg=COLORS["surface"]).pack(anchor="w", padx=24, pady=(16, 10))
+        self.difficulty_pills = PillRow(
+            config_f, ["Easy", "Moderate", "Hard"], "Easy",
+            self._save_difficulty, specials={"Easy": "teal"})
+        self.difficulty_pills.pack(anchor="w", padx=24, pady=(0, 14))
 
         tk.Label(config_f, text="These settings customize interview questions and MCQ difficulty.",
-                 font=get_font("caption"), fg=COLORS["text_faint"], bg=COLORS["surface"]).pack(anchor="w", padx=25, pady=(0, 8))
+                 font=get_font("caption"), fg=COLORS["text_faint"],
+                 bg=COLORS["surface"]).pack(anchor="w", padx=24, pady=(0, 8))
 
         graph_f = create_card(self.workspace)
         graph_f.pack(fill="both", expand=True, pady=(10, 0))
@@ -203,32 +305,40 @@ class MainDashboard(InternalBaseView):
         self.graph_canvas.bind("<Configure>", lambda e: _draw_bar_chart(
             self.graph_canvas, self._dash_days, self._dash_heights))
 
-    def _save_prefs(self, _event=None):
+    def _draw_avatar(self):
+        self.avatar_canvas.delete("all")
+        self.avatar_canvas.create_oval(1, 1, 26, 26, fill=COLORS["coral"], outline="")
+        self.avatar_canvas.create_arc(1, 1, 26, 26, start=0, extent=180,
+                                      fill=COLORS["primary"], outline="")
+
+    def _save_company(self, company):
         email = self.controller.current_user_email
-        if not email:
-            return
-        company = self.c_combo.get()
-        difficulty = self.d_combo.get()
         self.controller.target_company = company
+        if email:
+            update_user_preferences(email, company=company)
+
+    def _save_difficulty(self, difficulty):
+        email = self.controller.current_user_email
         self.controller.difficulty = difficulty
-        update_user_preferences(email, company=company, difficulty=difficulty)
+        if email:
+            update_user_preferences(email, difficulty=difficulty)
 
     def on_show(self):
         email = self.controller.current_user_email
-        if not email:
-            return
-        user = get_user(email)
+        user = get_user(email) if email else None
         if user:
-            self.c_combo.set(user.get("target_company") or self.controller.target_company or "Google")
-            self.d_combo.set(user.get("difficulty") or self.controller.difficulty or "Easy")
-            self.controller.target_company = self.c_combo.get()
-            self.controller.difficulty = self.d_combo.get()
+            first = (user["fullname"] or "there").split()[0]
+            self.lbl_greeting.config(text=f"Good morning, {first}")
+            self.lbl_user.config(text=user["fullname"])
+            company = user.get("target_company") or self.controller.target_company or "Google"
+            difficulty = user.get("difficulty") or self.controller.difficulty or "Easy"
+            self.company_pills.set_value(company)
+            self.difficulty_pills.set_value(difficulty)
+            self.controller.target_company = company
+            self.controller.difficulty = difficulty
 
-        streak = get_streak(email)
-        label = f"🔥 {streak} Day Streak!" if streak else "🔥 Start a streak today"
-        self.streak_lbl.config(text=label)
-
-        self._dash_heights = get_week_activity(email)
+        self._update_sidebar_footer()
+        self._dash_heights = get_week_activity(email) if email else [0, 0, 0, 0, 0, 0, 0]
         _draw_bar_chart(self.graph_canvas, self._dash_days, self._dash_heights)
 
 
@@ -435,6 +545,8 @@ class ResumeView(InternalBaseView):
 
     def on_show(self):
         import io
+
+        self._update_sidebar_footer()
 
         try:
             from PIL import Image, ImageTk
