@@ -16,18 +16,29 @@ def _responsive_card(parent, max_width, max_height):
                     highlightbackground=COLORS["border"], highlightthickness=1, bd=0)
     card.place(relx=0.5, rely=0.5, anchor="center", width=max_width, height=max_height)
 
-    _resize_id = [None]
+    _resize_state = {"after_id": None, "last_width": 0, "last_height": 0}
 
     def _resize(event):
-        if _resize_id[0]:
-            parent.after_cancel(_resize_id[0])
+        # Skip if size hasn't changed significantly (debounce)
+        if (abs(event.width - _resize_state["last_width"]) <= 4 and 
+            abs(event.height - _resize_state["last_height"]) <= 4):
+            return
+        _resize_state["last_width"] = event.width
+        _resize_state["last_height"] = event.height
+        
+        if _resize_state["after_id"]:
+            parent.after_cancel(_resize_state["after_id"])
 
         def _apply():
             w = min(max_width, int(event.width * 0.85))
             h = min(max_height, int(event.height * 0.92))
-            card.place_configure(width=w, height=h)
+            try:
+                card.place_configure(width=w, height=h)
+            except tk.TclError:
+                pass  # Widget destroyed
+            _resize_state["after_id"] = None
 
-        _resize_id[0] = parent.after(30, _apply)
+        _resize_state["after_id"] = parent.after(30, _apply)
 
     parent.bind("<Configure>", _resize)
     return card

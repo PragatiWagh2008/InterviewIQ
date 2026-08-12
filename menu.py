@@ -21,8 +21,12 @@ class InternalBaseView(tk.Frame):
         sidebar.pack_propagate(False)
 
         def _resize_sidebar(event):
+            # event.width is the width of self (InternalBaseView)
+            # Sidebar should be ~22% of total width, clamped
             w = max(190, min(250, int(event.width * 0.22)))
             sidebar.config(width=w)
+        
+        # Bind to self's Configure event for sidebar resize
         self.bind("<Configure>", _resize_sidebar)
         sidebar.config(width=232)
 
@@ -89,7 +93,12 @@ class InternalBaseView(tk.Frame):
         self.workspace.pack(fill="both", expand=True, padx=35, pady=25)
 
         def _resize_workspace(event):
-            px = max(18, min(45, int(event.width * 0.04)))
+            # Use sidebar's actual width to calculate workspace padding
+            sidebar_w = sidebar.winfo_width()
+            available_w = event.width - sidebar_w
+            if available_w < 100:
+                return
+            px = max(18, min(45, int(available_w * 0.05)))
             py = max(12, min(30, int(event.height * 0.03)))
             self.workspace.pack_configure(padx=px, pady=py)
         self.bind("<Configure>", _resize_workspace, add="+")
@@ -145,7 +154,11 @@ def _draw_bar_chart(canvas, days, heights, bar_color=None, show_values=True):
 
 
 class PillRow(tk.Frame):
-    """Wrap-row of selectable pill buttons (company / difficulty chooser)."""
+    """Wrap-row of selectable pill buttons (company / difficulty chooser).
+
+    Rows re-wrap automatically to fit the widget's current width, so pills
+    never overflow the card when the window is resized.
+    """
 
     def __init__(self, parent, options, initial, on_change, specials=None, max_width=860):
         super().__init__(parent, bg=COLORS["surface"])
@@ -153,14 +166,40 @@ class PillRow(tk.Frame):
         self.value = initial
         self.buttons = {}
         self.specials = specials or {}
+        self.options = list(options)
+        self.max_width = max_width
+        self._last_width = -1
 
         f = tkfont.Font(font=get_font("small_b"))
+        self._font = f
+        self._widths = {opt: f.measure(opt) + 48 for opt in self.options}
+
+        # Re-wrap when the available width actually changes (window resize).
+        self.bind("<Configure>", self._on_resize)
+
+        # Seed an initial layout using the caller's width hint; the first
+        # <Configure> with a real size will rebuild rows to fit exactly.
+        self._rebuild(max_width)
+
+    def _on_resize(self, event):
+        w = event.width
+        if w < 10 or abs(w - self._last_width) <= 4:
+            return
+        self._rebuild(w)
+
+    def _rebuild(self, avail_width):
+        self._last_width = avail_width
+        for child in self.winfo_children():
+            child.destroy()
+        if avail_width < 10:
+            return
+
         row = tk.Frame(self, bg=COLORS["surface"])
         row.pack(fill="x", anchor="w")
         row_w = 0
-        for opt in options:
-            w = f.measure(opt) + 48
-            if row_w > 0 and row_w + w > max_width:
+        for opt in self.options:
+            w = self._widths[opt]
+            if row_w > 0 and row_w + w > avail_width:
                 row = tk.Frame(self, bg=COLORS["surface"])
                 row.pack(fill="x", anchor="w", pady=(8, 0))
                 row_w = 0
@@ -168,7 +207,7 @@ class PillRow(tk.Frame):
             btn.pack(side="left", padx=(0, 8))
             row_w += w + 8
             self.buttons[opt] = btn
-        self._apply_styles(initial)
+        self._apply_styles(self.value)
 
     def _make(self, parent, text):
         return tk.Button(parent, text=text, font=get_font("small_b"), bd=0, relief="flat",
@@ -513,7 +552,13 @@ class ResumeView(InternalBaseView):
             self.active_underline.place(x=self.btn_insights_tab.winfo_width() + 10, y=0)
 
     def draw_score_gauge(self, score):
-        animate_arc(self.score_canvas, 70, 70, 55, score, sub_label="Strength Score")
+        # Store reference to allow cancellation of previous animation
+        if hasattr(self, "_score_anim_cancel"):
+            try:
+                self._score_anim_cancel()
+            except Exception:
+                pass
+        self._score_anim_cancel = animate_arc(self.score_canvas, 70, 70, 55, score, sub_label="Strength Score")
 
     def _compute_resume_score(self, text, skills):
         score = 40

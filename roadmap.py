@@ -40,6 +40,14 @@ class McqPracticeView(InternalBaseView):
                                      fg=COLORS["text"], bg=COLORS["surface"], wraplength=700, justify="left")
         self.lbl_question.pack(anchor="w", padx=35, pady=(10, 20))
 
+        # Responsive wraplength: re-wrap question text when card width changes
+        def _resize_question(event):
+            if hasattr(self, "lbl_question"):
+                w = self.question_body.winfo_width() - 70
+                if w > 100:
+                    self.lbl_question.config(wraplength=w)
+        self.question_body.bind("<Configure>", _resize_question)
+
         self.options_box = tk.Frame(self.question_body, bg=COLORS["surface"])
         self.options_box.pack(fill="x")
 
@@ -125,6 +133,8 @@ class McqPracticeView(InternalBaseView):
             lbl = tk.Label(f_opt, text=opt, font=get_font("body"),
                            fg=COLORS["text_secondary"], bg=COLORS["surface"], wraplength=620, justify="left")
             lbl.pack(side="left", padx=10)
+            # Responsive wraplength for options
+            f_opt.bind("<Configure>", lambda e, l=lbl: l.config(wraplength=max(200, f_opt.winfo_width() - 70)) if f_opt.winfo_width() > 100 else None)
 
             item = {
                 "frame": f_opt,
@@ -367,7 +377,13 @@ class PerformanceView(InternalBaseView):
             return
         summary = get_performance_summary(email)
         self._overall_pct = summary["overall"]
-        animate_arc(self.progress_canvas, 42, 42, 37, target_pct=self._overall_pct,
+        # Store reference to allow cancellation of previous animation
+        if hasattr(self, "_progress_anim_cancel"):
+            try:
+                self._progress_anim_cancel()
+            except Exception:
+                pass
+        self._progress_anim_cancel = animate_arc(self.progress_canvas, 42, 42, 37, target_pct=self._overall_pct,
                     arc_color=COLORS["success"], sub_label="Score")
 
         msg = (

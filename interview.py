@@ -2,14 +2,18 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from menu import InternalBaseView
 from database import get_user, save_interview_session
-from services.ai_service import generate_interview_questions, evaluate_answer as ai_evaluate_answer
+from services.ai_service import generate_interview_questions, evaluate_answer_async
 try:
     from config import AI_ENABLED
 except ImportError:
     AI_ENABLED = False
-from theme import COLORS, get_font, add_hover, TypingIndicator
+from theme import COLORS, get_font, add_hover, TypingIndicator, bind_mousewheel
 import random
 import threading
+
+# Fall back to the local question banks if the AI provider doesn't answer
+# within this window, so the interview never stalls on a slow network call.
+AI_TIMEOUT_MS = 8000
 
 QUESTION_BANKS = {
     "AI Engineer": [
@@ -214,6 +218,8 @@ class MockInterviewView(InternalBaseView):
         self.chat_canvas.pack(side="left", fill="both", expand=True)
         self.chat_scrollbar.pack(side="right", fill="y")
 
+        # Enable mousewheel scrolling for the chat
+        bind_mousewheel(self.chat_canvas, self.chat_canvas)
         self.chat_canvas.bind("<Configure>", self._on_canvas_configure)
 
         footer = tk.Frame(self.chat_card, bg=COLORS["surface"])
@@ -301,25 +307,8 @@ class MockInterviewView(InternalBaseView):
         bank = QUESTION_BANKS.get(self.designation, QUESTION_BANKS["Default"])
         self.questions = list(bank)
 
-        if AI_ENABLED:
-            user_resume = ""
-            if self.controller.current_user_email:
-                user = get_user(self.controller.current_user_email)
-                user_resume = user.get("resume_text", "") if user else ""
-
-            generated = generate_interview_questions(
-                user_resume, self.designation, self.company, self.difficulty, n=5
-            )
-            if generated:
-                self.questions = generated
-
-        # Harder difficulties inject an extra probing angle into later questions
-        if self.difficulty in ("Moderate", "Hard"):
-            followups = HARD_FOLLOWUPS.get(self.difficulty, [])
-            for i in range(2, len(self.questions)):
-                if followups:
-                    self.questions[i] = self.questions[i] + "\n\n" + random.choice(followups)
-
+        # Show the first question immediately using local banks; swap to AI
+        # questions if/when the provider responds (non-blocking).
         flavor = COMPANY_FLAVOR.get(self.company, "")
         self.lbl_status.config(text="● Live Interview (1/5)", fg=COLORS["success_text"])
         self.lbl_status.master.config(bg=COLORS["success_bg"], highlightbackground=COLORS["success_border"])
@@ -335,6 +324,37 @@ class MockInterviewView(InternalBaseView):
         )
         self.add_message("bot", intro)
         self.txt_msg.focus_set()
+
+        # Optionally enrich questions via AI in the background.
+        if AI_ENABLED:
+            self._fetch_ai_questions_async()
+
+    def _fetch_ai_questions_async(self):
+        user_resume = ""
+        if self.controller.current_user_email:
+            user = get_user(self.controller.current_user_email)
+            user_resume = user.get("resume_text", "") if user else ""
+
+        def worker():
+            generated = generate_interview_questions(
+                user_resume, self.designation, self.company, self.difficulty, n=5
+            )
+            if generated:
+                self.after(0, lambda: self._swap_ai_questions(generated))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _swap_ai_questions(self, generated):
+        # Preserve answers already given; only swap the *remaining* questions.
+        answered = self.current_q_index
+        self.questions = generated
+        if self.difficulty in ("Moderate", "Hard"):
+            followups = HARD_FOLLOWUPS.get(self.difficulty, [])
+            for i in range(max(2, answered), len(self.questions)):
+                if followups:
+                    self.questions[i] = self.questions[i] + "\n\n" + random.choice(followups)
+        # If we haven't asked the new first question yet, the next send_message
+        # will pick it up naturally from self.questions[self.current_q_index].
 
     def reset_interview(self):
         self.session_active = False
@@ -357,8 +377,11 @@ class MockInterviewView(InternalBaseView):
         self.chat_canvas.yview_moveto(1.0)
 
         def _deliver():
-            indicator.stop()
-            indicator.destroy()
+            try:
+                indicator.stop()
+                indicator.destroy()
+            except tk.TclError:
+                pass  # Widget already destroyed
             self.add_message("bot", reply_text)
 
         delay = random.randint(600, 1000)
@@ -395,14 +418,34 @@ class MockInterviewView(InternalBaseView):
             quality_score = max(35, quality_score - 10)
             feedback += "\nHard mode: interviewers expect denser domain vocabulary."
 
+        # Start async AI evaluation if enabled - result will be applied via callback
         if AI_ENABLED:
             question = self.questions[self.current_q_index] if self.current_q_index < len(self.questions) else ""
-            ai_result = ai_evaluate_answer(user_text, question, self.designation)
-            if ai_result:
-                feedback = ai_result.get("feedback", feedback)
-                quality_score = int(ai_result.get("overall_score", quality_score))
+            self._evaluate_answer_async(user_text, question)
 
         return feedback, quality_score
+
+    def _evaluate_answer_async(self, user_text, question):
+        """Run AI evaluation in background thread and update UI when done."""
+        def worker():
+            ai_result = evaluate_answer_async(user_text, question, self.designation, AI_TIMEOUT_MS)
+            if ai_result:
+                # Schedule UI update on main thread
+                self.after(0, lambda: self._apply_ai_evaluation(ai_result))
+        
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_ai_evaluation(self, ai_result):
+        """Apply AI evaluation result to the last answer if still relevant."""
+        if not self.user_answers:
+            return
+        last_answer = self.user_answers[-1]
+        if "score" in last_answer:  # Answer still exists
+            feedback = ai_result.get("feedback", last_answer.get("feedback", ""))
+            quality_score = int(ai_result.get("overall_score", last_answer.get("score", 60)))
+            last_answer["score"] = quality_score
+            last_answer["feedback"] = feedback
+            # Note: In a full implementation, you'd also update the visual feedback
 
     def send_message(self):
         text = self.txt_msg.get("1.0", "end-1c").strip()

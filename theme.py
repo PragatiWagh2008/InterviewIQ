@@ -210,6 +210,8 @@ def animate_arc(canvas, cx, cy, r, target_pct, current_pct=0, arc_color=None,
                 bg_ring_color=None, label_font=None, sub_label="", step=2, delay=12):
     """
     Smoothly draw a progress arc from current_pct → target_pct on a canvas.
+    
+    Returns a stop function that can be called to cancel the animation.
     """
     arc_color = arc_color or COLORS["primary"]
     bg_ring_color = bg_ring_color or COLORS["surface_alt"]
@@ -219,8 +221,16 @@ def animate_arc(canvas, cx, cy, r, target_pct, current_pct=0, arc_color=None,
     x2, y2 = cx + r, cy + r
     target_pct = max(0, min(100, int(target_pct or 0)))
 
+    _anim_state = {"after_id": None, "cancelled": False}
+
     def _draw(pct):
-        canvas.delete("all")
+        if _anim_state["cancelled"]:
+            return
+        try:
+            canvas.delete("all")
+        except tk.TclError:
+            return  # Canvas destroyed
+        
         # Background ring
         canvas.create_oval(x1, y1, x2, y2, outline=bg_ring_color, width=10)
         # Progress arc
@@ -233,12 +243,22 @@ def animate_arc(canvas, cx, cy, r, target_pct, current_pct=0, arc_color=None,
 
         if pct < target_pct:
             next_pct = min(pct + step, target_pct)
-            canvas.after(delay, lambda: _draw(next_pct))
+            _anim_state["after_id"] = canvas.after(delay, lambda: _draw(next_pct))
         elif pct > target_pct:
             # Allow redrawing lower values without animation glitches
             canvas.create_text(cx, cy - 8, text=f"{target_pct}%", font=label_font, fill=COLORS["text"])
 
+    def _cancel():
+        _anim_state["cancelled"] = True
+        if _anim_state["after_id"]:
+            try:
+                canvas.after_cancel(_anim_state["after_id"])
+            except tk.TclError:
+                pass
+            _anim_state["after_id"] = None
+
     _draw(current_pct)
+    return _cancel
 
 
 # ─────────────────────────────────────────────
@@ -254,19 +274,30 @@ class TypingIndicator(tk.Frame):
         self._dots_label.pack(anchor="w", padx=25, pady=8)
         self._dot_count = 0
         self._anim_id = None
+        self._running = False
 
     def start(self):
+        self._running = True
         self._animate()
 
     def _animate(self):
-        self._dot_count = (self._dot_count % 3) + 1
-        dots = "●  " * self._dot_count
-        self._dots_label.config(text=f"AI is typing {dots.strip()}")
-        self._anim_id = self.after(400, self._animate)
+        if not self._running:
+            return
+        try:
+            self._dot_count = (self._dot_count % 3) + 1
+            dots = "●  " * self._dot_count
+            self._dots_label.config(text=f"AI is typing {dots.strip()}")
+            self._anim_id = self.after(400, self._animate)
+        except tk.TclError:
+            self._running = False
 
     def stop(self):
+        self._running = False
         if self._anim_id:
-            self.after_cancel(self._anim_id)
+            try:
+                self.after_cancel(self._anim_id)
+            except tk.TclError:
+                pass
             self._anim_id = None
 
 
@@ -274,22 +305,35 @@ class TypingIndicator(tk.Frame):
 # Pulse Animation (for streak flame etc.)
 # ─────────────────────────────────────────────
 def pulse_label(label, color_a, color_b, interval=800):
-    """Toggle a label's fg between two colors to create a pulse effect."""
-    _current = {"c": color_a}
+    """Toggle a label's fg between two colors to create a pulse effect.
+    
+    Returns a stop function that can be called to cancel the animation.
+    """
+    _current = {"c": color_a, "running": True}
 
     def _toggle():
-        _current["c"] = color_b if _current["c"] == color_a else color_a
+        if not _current["running"]:
+            return
         try:
+            _current["c"] = color_b if _current["c"] == color_a else color_a
             label.config(fg=_current["c"])
+            label.after(interval, _toggle)
         except tk.TclError:
-            return  # widget was destroyed
-        label.after(interval, _toggle)
+            _current["running"] = False
+
+    def _stop():
+        _current["running"] = False
 
     _toggle()
+    return _stop
 
 
 def bind_mousewheel(widget, canvas):
-    """Cross-platform mousewheel binding for scrollable canvases."""
+    """Cross-platform mousewheel binding for scrollable canvases.
+    
+    Uses widget-specific bindings instead of bind_all to avoid conflicts
+    between multiple scrollable areas.
+    """
     def _on_mousewheel(event):
         if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0:
             canvas.yview_scroll(-1, "units")
@@ -297,17 +341,27 @@ def bind_mousewheel(widget, canvas):
             canvas.yview_scroll(1, "units")
 
     def _bind(_event=None):
-        widget.bind_all("<MouseWheel>", _on_mousewheel)
-        widget.bind_all("<Button-4>", _on_mousewheel)
-        widget.bind_all("<Button-5>", _on_mousewheel)
+        widget.bind("<MouseWheel>", _on_mousewheel)
+        widget.bind("<Button-4>", _on_mousewheel)
+        widget.bind("<Button-5>", _on_mousewheel)
+        # Also bind to canvas for when mouse is over scrollbar area
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        canvas.bind("<Button-4>", _on_mousewheel)
+        canvas.bind("<Button-5>", _on_mousewheel)
 
     def _unbind(_event=None):
-        widget.unbind_all("<MouseWheel>")
-        widget.unbind_all("<Button-4>")
-        widget.unbind_all("<Button-5>")
+        widget.unbind("<MouseWheel>")
+        widget.unbind("<Button-4>")
+        widget.unbind("<Button-5>")
+        canvas.unbind("<MouseWheel>")
+        canvas.unbind("<Button-4>")
+        canvas.unbind("<Button-5>")
 
     widget.bind("<Enter>", _bind)
     widget.bind("<Leave>", _unbind)
+    # Also bind on canvas enter/leave
+    canvas.bind("<Enter>", _bind)
+    canvas.bind("<Leave>", _unbind)
 
 
 # ─────────────────────────────────────────────
