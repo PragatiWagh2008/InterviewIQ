@@ -38,7 +38,7 @@ InterviewIQ is an AI-powered desktop application that helps tech professionals p
 
 1. **Get the code:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/PragatiWagh2008/InterviewIQ.git
    cd InterviewIQ
    ```
 
