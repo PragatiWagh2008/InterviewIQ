@@ -134,7 +134,8 @@ class McqPracticeView(InternalBaseView):
                            fg=COLORS["text_secondary"], bg=COLORS["surface"], wraplength=620, justify="left")
             lbl.pack(side="left", padx=10)
             # Responsive wraplength for options
-            f_opt.bind("<Configure>", lambda e, l=lbl: l.config(wraplength=max(200, f_opt.winfo_width() - 70)) if f_opt.winfo_width() > 100 else None)
+            f_opt.bind("<Configure>", lambda e, f=f_opt, l=lbl: l.config(
+                wraplength=max(120, f.winfo_width() - 100)) if f.winfo_width() > 130 else None)
 
             item = {
                 "frame": f_opt,

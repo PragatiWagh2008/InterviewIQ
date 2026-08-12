@@ -132,7 +132,7 @@ class ChatBubble(tk.Canvas):
         fg_color = COLORS["text"] if self.sender == "bot" else "white"
         header_color = COLORS["primary"] if self.sender == "bot" else COLORS["primary_lighter"]
 
-        max_bubble_width = max(200, w - 100)
+        max_bubble_width = max(120, w - 100)
 
         temp_text = self.create_text(0, 0, text=self.text, font=get_font("chat"), width=max_bubble_width-40, anchor="nw")
         bounds = self.bbox(temp_text)

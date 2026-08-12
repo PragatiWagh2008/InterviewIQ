@@ -153,6 +153,15 @@ def _draw_bar_chart(canvas, days, heights, bar_color=None, show_values=True):
             canvas.create_text(x0 + bar_width / 2, y0 - 10, text=str(val), font=get_font("caption_b"), fill=COLORS["text_secondary"])
 
 
+def _responsive_wrap(widget, label, padding, min_wrap=80):
+    """Keep a label's wraplength in sync with its parent widget's width."""
+    def _update(event=None):
+        w = widget.winfo_width() - padding
+        if w > min_wrap:
+            label.config(wraplength=w)
+    widget.bind("<Configure>", _update)
+
+
 class PillRow(tk.Frame):
     """Wrap-row of selectable pill buttons (company / difficulty chooser).
 
@@ -300,11 +309,15 @@ class MainDashboard(InternalBaseView):
                      bg=icon_bg[tag], fg=icon_fg[tag]).pack(expand=True)
 
             lbl_title = tk.Label(card, text=title, font=get_font("h4"),
-                                 bg=COLORS["surface"], fg=COLORS["text"], justify="left")
+                                 bg=COLORS["surface"], fg=COLORS["text"], justify="left",
+                                 wraplength=260)
             lbl_title.pack(anchor="w", padx=18)
             lbl_sub = tk.Label(card, text=sub, font=get_font("small"),
-                               bg=COLORS["surface"], fg=COLORS["text_muted"], justify="left")
+                               bg=COLORS["surface"], fg=COLORS["text_muted"], justify="left",
+                               wraplength=260)
             lbl_sub.pack(anchor="w", padx=18, pady=(2, 14))
+            _responsive_wrap(card, lbl_title, 36)
+            _responsive_wrap(card, lbl_sub, 36)
 
             for widget in (card, lbl_title, lbl_sub):
                 widget.bind("<Button-1>", lambda e, r=route: self.controller.show_screen(r))
@@ -318,14 +331,14 @@ class MainDashboard(InternalBaseView):
         self.company_pills = PillRow(
             config_f, ["Google", "Microsoft", "Amazon", "Meta", "NVIDIA", "OpenAI", "Apple"],
             "Google", self._save_company)
-        self.company_pills.pack(anchor="w", padx=24)
+        self.company_pills.pack(fill="x", anchor="w", padx=24)
 
         tk.Label(config_f, text="Select difficulty", font=get_font("h4"),
                  fg=COLORS["text"], bg=COLORS["surface"]).pack(anchor="w", padx=24, pady=(16, 10))
         self.difficulty_pills = PillRow(
             config_f, ["Easy", "Moderate", "Hard"], "Easy",
             self._save_difficulty, specials={"Easy": "teal"})
-        self.difficulty_pills.pack(anchor="w", padx=24, pady=(0, 14))
+        self.difficulty_pills.pack(fill="x", anchor="w", padx=24, pady=(0, 14))
 
         tk.Label(config_f, text="These settings customize interview questions and MCQ difficulty.",
                  font=get_font("caption"), fg=COLORS["text_faint"],
@@ -404,11 +417,11 @@ class ResumeView(InternalBaseView):
         self.photo_canvas.pack(pady=20)
 
         self.lbl_name = tk.Label(self.left_card, text="Full Name", font=get_font("h4"),
-                                 fg=COLORS["text"], bg=COLORS["surface"], wraplength=280)
+                                 fg=COLORS["text"], bg=COLORS["surface"], wraplength=200)
         self.lbl_name.pack(pady=(10, 2))
 
         self.lbl_email = tk.Label(self.left_card, text="email@example.com", font=get_font("small"),
-                                  fg=COLORS["text_muted"], bg=COLORS["surface"], wraplength=280)
+                                  fg=COLORS["text_muted"], bg=COLORS["surface"], wraplength=200)
         self.lbl_email.pack(pady=(0, 15))
 
         tk.Frame(self.left_card, bg=COLORS["border"], height=1).pack(fill="x", padx=30, pady=10)
@@ -420,7 +433,7 @@ class ResumeView(InternalBaseView):
         self.branch_badge.pack(anchor="w", padx=30, pady=2)
         self.lbl_branch = tk.Label(self.branch_badge, text="Branch Info", font=get_font("caption_b"),
                                    fg=COLORS["text_secondary"], bg=COLORS["surface_alt"], padx=8, pady=3,
-                                   wraplength=220, justify="left")
+                                   wraplength=140, justify="left")
         self.lbl_branch.pack()
 
         tk.Label(self.left_card, text="DESIGNATION", font=get_font("caption_b"),
@@ -430,8 +443,13 @@ class ResumeView(InternalBaseView):
         self.desig_badge.pack(anchor="w", padx=30, pady=2)
         self.lbl_desig = tk.Label(self.desig_badge, text="Designation Info", font=get_font("caption_b"),
                                   fg=COLORS["primary"], bg=COLORS["primary_light"], padx=8, pady=3,
-                                  wraplength=220, justify="left")
+                                  wraplength=140, justify="left")
         self.lbl_desig.pack()
+
+        _responsive_wrap(self.left_card, self.lbl_name, 8)
+        _responsive_wrap(self.left_card, self.lbl_email, 8)
+        _responsive_wrap(self.left_card, self.lbl_branch, 76)
+        _responsive_wrap(self.left_card, self.lbl_desig, 76)
 
         self.right_container = tk.Frame(self.panel_frame, bg=COLORS["bg"])
         self.right_container.grid(row=0, column=1, pady=5, sticky="nsew")
@@ -482,7 +500,48 @@ class ResumeView(InternalBaseView):
         tk.Label(skills_card, text="Detected Core Skills", font=get_font("body_b"),
                  fg=COLORS["text"], bg=COLORS["surface"]).pack(anchor="w", padx=20, pady=(15, 10))
         self.skills_container = tk.Frame(skills_card, bg=COLORS["surface"])
-        self.skills_container.pack(fill="both", expand=True, padx=20, pady=(0, 15))
+        # fill="x" only: the container takes its natural content height, so a
+        # badge re-render never feeds back into the surrounding layout.
+        self.skills_container.pack(fill="x", padx=20, pady=(0, 15))
+        self._skills = None
+        self._skills_width = 0
+        self._skills_job = None
+
+        def _on_skills_resize(event):
+            if event.width < 20 or self._skills is None:
+                return
+            if abs(event.width - self._skills_width) <= 4:
+                return
+            self._skills_width = event.width
+            if self._skills_job is not None:
+                self.after_cancel(self._skills_job)
+            self._skills_job = self.after(50, lambda: self._render_skills(self._skills))
+        self.skills_container.bind("<Configure>", _on_skills_resize)
+
+        # Stack score/skills vertically when the panel is too narrow to fit side-by-side.
+        self._reflow_stacked = None
+
+        def _reflow_upper(event=None):
+            w = self.insights_frame.winfo_width()
+            if w < 20:
+                return
+            if self._reflow_stacked is None:
+                self._reflow_stacked = w < 460
+            elif self._reflow_stacked and w > 490:
+                self._reflow_stacked = False
+            elif not self._reflow_stacked and w < 430:
+                self._reflow_stacked = True
+            if self._reflow_stacked:
+                score_card.pack_configure(side="top", fill="both", expand=True,
+                                          padx=(0, 0), pady=(0, 10))
+                skills_card.pack_configure(side="top", fill="both", expand=True,
+                                           padx=(0, 0), pady=(0, 0))
+            else:
+                score_card.pack_configure(side="left", fill="both", expand=True,
+                                          padx=(0, 10), pady=5)
+                skills_card.pack_configure(side="left", fill="both", expand=True,
+                                           padx=(10, 0), pady=5)
+        self.insights_frame.bind("<Configure>", _reflow_upper)
 
         self.tips_card = tk.Frame(self.insights_frame, bg=COLORS["info_bg"],
                                   highlightbackground=COLORS["info_border"], highlightthickness=1)
@@ -588,6 +647,42 @@ class ResumeView(InternalBaseView):
             tips.append("• Add 1–2 project write-ups with stack + outcome.")
         return "\n".join(tips[:4])
 
+    def _render_skills(self, skills):
+        """Render detected skills as badges that wrap to fit the container width."""
+        self._skills_job = None
+        self._skills_width = self.skills_container.winfo_width()
+        container = self.skills_container
+        for widget in container.winfo_children():
+            widget.destroy()
+
+        if not skills:
+            tk.Label(container, text="No tech skills identified.",
+                     font=(get_font("body")[0], 10, "italic"), fg=COLORS["text_faint"],
+                     bg=COLORS["surface"]).pack(anchor="w", pady=10)
+            return
+
+        f = tkfont.Font(font=get_font("tiny"))
+        avail = max(container.winfo_width() - 8, 160)
+        row_frame = None
+        row_w = 0
+        for skill in skills[:12]:
+            badge_w = f.measure(skill) + 20
+            if row_frame is None or row_w + badge_w > avail:
+                row_frame = tk.Frame(container, bg=COLORS["surface"])
+                row_frame.pack(fill="x", pady=4, anchor="w")
+                row_w = 0
+
+            badge = tk.Frame(row_frame, bg=COLORS["primary_light"],
+                             highlightbackground=COLORS["primary_lighter"], highlightthickness=1)
+            badge.pack(side="left", padx=4)
+            lbl = tk.Label(badge, text=skill, font=get_font("tiny"),
+                           fg=COLORS["primary"], bg=COLORS["primary_light"], padx=6, pady=2)
+            lbl.pack()
+            add_hover(lbl, enter_bg=COLORS["primary"], leave_bg=COLORS["primary_light"],
+                      enter_fg=COLORS["surface"], leave_fg=COLORS["primary"])
+            add_hover(badge, enter_bg=COLORS["primary"], leave_bg=COLORS["primary_light"])
+            row_w += badge_w + 8
+
     def on_show(self):
         import io
 
@@ -618,29 +713,11 @@ class ResumeView(InternalBaseView):
         self.txt_resume.config(state="disabled")
 
         skills = improve_skill_extraction(resume_text)
-        for widget in self.skills_container.winfo_children():
-            widget.destroy()
-
-        if skills:
-            row_frame = None
-            for i, skill in enumerate(skills[:12]):
-                if i % 3 == 0:
-                    row_frame = tk.Frame(self.skills_container, bg=COLORS["surface"])
-                    row_frame.pack(fill="x", pady=4, anchor="w")
-
-                badge = tk.Frame(row_frame, bg=COLORS["primary_light"],
-                                 highlightbackground=COLORS["primary_lighter"], highlightthickness=1)
-                badge.pack(side="left", padx=4)
-                lbl = tk.Label(badge, text=skill, font=get_font("tiny"),
-                               fg=COLORS["primary"], bg=COLORS["primary_light"], padx=6, pady=2)
-                lbl.pack()
-                add_hover(lbl, enter_bg=COLORS["primary"], leave_bg=COLORS["primary_light"],
-                          enter_fg=COLORS["surface"], leave_fg=COLORS["primary"])
-                add_hover(badge, enter_bg=COLORS["primary"], leave_bg=COLORS["primary_light"])
-        else:
-            tk.Label(self.skills_container, text="No tech skills identified.",
-                     font=(get_font("body")[0], 10, "italic"), fg=COLORS["text_faint"],
-                     bg=COLORS["surface"]).pack(anchor="w", pady=10)
+        self._skills = skills
+        if self._skills_job is not None:
+            self.after_cancel(self._skills_job)
+            self._skills_job = None
+        self._render_skills(skills)
 
         score = self._compute_resume_score(resume_text, skills)
         self.draw_score_gauge(score)

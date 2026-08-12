@@ -23,8 +23,14 @@ class InterviewIQApp(tk.Tk):
         super().__init__()
 
         self.title("InterviewIQ")
-        self.geometry("1100x780")
-        self.minsize(800, 600)
+
+        # Fit the initial window to the screen so it is usable on small displays.
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        win_w = min(1100, max(760, sw - 80))
+        win_h = min(780, max(560, sh - 120))
+        self.geometry(f"{win_w}x{win_h}")
+        self.minsize(min(800, win_w), min(600, win_h))
         self.configure(bg=COLORS["bg"])
 
         style = ttk.Style(self)
